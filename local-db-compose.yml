@@ -1,0 +1,16 @@
+services:
+  postgres_db:
+    image: postgres:17-alpine
+    container_name: local_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: poll
+      POSTGRES_PASSWORD: securethepoll
+      POSTGRES_DB: securepoll
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
