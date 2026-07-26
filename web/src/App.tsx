@@ -1,122 +1,69 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import AdminLayout from "./components/AdminLayout";
+import RequireAuth from "./components/RequireAuth";
+import { AuthProvider } from "./auth/AuthContext";
+import RegisterPage from "./pages/RegisterPage";
+import ReplaceKeyPage from "./pages/ReplaceKeyPage";
+import VoterStatusPage from "./pages/VoterStatusPage";
+import AdminsPage from "./pages/admin/AdminsPage";
+import AuditPage from "./pages/admin/AuditPage";
+import BallotAccessPage from "./pages/admin/BallotAccessPage";
+import CandidatesPage from "./pages/admin/CandidatesPage";
+import DashboardPage from "./pages/admin/DashboardPage";
+import ElectionDetailPage from "./pages/admin/ElectionDetailPage";
+import ElectionsPage, { NewElectionPage } from "./pages/admin/ElectionsPage";
+import GroupsPage from "./pages/admin/GroupsPage";
+import KeyRotationsPage from "./pages/admin/KeyRotationsPage";
+import LoginPage from "./pages/admin/LoginPage";
+import MonitoringPage from "./pages/admin/MonitoringPage";
+import QueuePage from "./pages/admin/QueuePage";
+import VotersPage from "./pages/admin/VotersPage";
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<Navigate to="/register" replace />} />
+          <Route path="/register" element={<RegisterPage />} />
+          {/* Reached from the link in the voter's confirmation email. */}
+          <Route path="/status/:id" element={<VoterStatusPage />} />
+          {/* Reached from the status page when a voter has lost their key file. */}
+          <Route path="/status/:id/new-key" element={<ReplaceKeyPage />} />
+          <Route path="/admin/login" element={<LoginPage />} />
 
-      <div className="ticks"></div>
+          <Route
+            path="/admin"
+            element={
+              <RequireAuth>
+                <AdminLayout />
+              </RequireAuth>
+            }
+          >
+            <Route index element={<DashboardPage />} />
+            <Route path="registrations" element={<QueuePage />} />
+            {/* The old standalone detail route now selects a record inside the split pane. */}
+            <Route
+              path="registrations/:id"
+              element={<Navigate to="/admin/registrations" replace />}
+            />
+            <Route path="elections" element={<ElectionsPage />} />
+            <Route path="elections/new" element={<NewElectionPage />} />
+            <Route path="elections/:id" element={<ElectionDetailPage />} />
+            <Route path="elections/:id/candidates" element={<CandidatesPage />} />
+            <Route path="elections/:id/voters" element={<VotersPage />} />
+            <Route path="elections/:id/groups" element={<GroupsPage />} />
+            <Route path="elections/:id/ballot-access" element={<BallotAccessPage />} />
+            <Route path="elections/:id/monitoring" element={<MonitoringPage />} />
+            <Route path="key-replacements" element={<KeyRotationsPage />} />
+            <Route path="audit" element={<AuditPage />} />
+            {/* Super-admin only; the router refuses reviewers regardless of the hidden nav item. */}
+            <Route path="operators" element={<AdminsPage />} />
+          </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+          <Route path="*" element={<Navigate to="/register" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  );
 }
-
-export default App
