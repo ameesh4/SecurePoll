@@ -39,7 +39,7 @@ export async function findTokenById(
 /**
  * Looks a credential up by the hash of the presented token, locking the row.
  *
- * The lock is what makes single use real. Two concurrent redemptions of the same token would
+ * The lock is what makes first-retrieval-wins real. Two concurrent retrievals of the same token would
  * otherwise both read `redeemedAt` as null and both succeed, and the whole purpose of the
  * credential is that it works once.
  */

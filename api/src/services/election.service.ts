@@ -15,7 +15,7 @@ import {
 } from "../db/repository/elections.repository";
 import { listRingsWithSizes } from "../db/repository/rings.repository";
 import { AuditAction, type Election, type ElectionStatus } from "../db/schema";
-import { chain } from "../lib/chain";
+import { chainFor } from "../lib/chain";
 import { BadRequestError, NotFoundError } from "../lib/errors";
 import {
   assertTransitionGuardsPass,
@@ -41,6 +41,8 @@ export interface ElectionInput {
   votingOpensAt?: Date | null;
   votingClosesAt?: Date | null;
   ringSize?: number;
+  chainRootIp?: string | null;
+  chainRootPort?: number | null;
 }
 
 export interface ElectionSummary {
@@ -54,7 +56,8 @@ export interface ElectionDetail extends ElectionSummary {
   /** Pre-flight for the next meaningful step, so the detail screen can render it inline. */
   guards: GuardReport;
   unassignedVoters: number;
-  offices: { office: string; candidates: number }[];
+  /** How many names are on the ballot — the "at least 2 candidates" guard is decided on this. */
+  candidateCount: number;
 }
 
 export async function getElection(id: string): Promise<Election> {
@@ -103,11 +106,6 @@ export async function getElectionDetail(id: string): Promise<ElectionDetail> {
     next ? evaluateTransitionGuards(election, next) : Promise.resolve({ checks: [], passed: true }),
   ]);
 
-  const byOffice = new Map<string, number>();
-  for (const candidate of candidateRows) {
-    byOffice.set(candidate.office, (byOffice.get(candidate.office) ?? 0) + 1);
-  }
-
   return {
     election,
     counts,
@@ -115,10 +113,7 @@ export async function getElectionDetail(id: string): Promise<ElectionDetail> {
     transitions: allowedTransitions(election.status),
     guards,
     unassignedVoters: unassigned,
-    offices: [...byOffice.entries()].map(([office, count]) => ({
-      office,
-      candidates: count,
-    })),
+    candidateCount: candidateRows.length,
   };
 }
 
@@ -150,6 +145,8 @@ export async function createNewElection(
         votingOpensAt: input.votingOpensAt ?? null,
         votingClosesAt: input.votingClosesAt ?? null,
         ...(input.ringSize === undefined ? {} : { ringSize: input.ringSize }),
+        chainRootIp: input.chainRootIp?.trim() || null,
+        chainRootPort: input.chainRootPort ?? null,
       },
       tx,
     );
@@ -217,6 +214,12 @@ export async function updateElectionMetadata(
           ? {}
           : { votingClosesAt: input.votingClosesAt }),
         ...(input.ringSize === undefined ? {} : { ringSize: input.ringSize }),
+        ...(input.chainRootIp === undefined
+          ? {}
+          : { chainRootIp: input.chainRootIp?.trim() || null }),
+        ...(input.chainRootPort === undefined
+          ? {}
+          : { chainRootPort: input.chainRootPort ?? null }),
       },
       tx,
     );
@@ -324,7 +327,7 @@ async function publishConfiguration(election: Election): Promise<void> {
 
   const candidates = await listCandidates(election.id);
   try {
-    await chain.publishElectionConfig({
+    await chainFor(election).publishElectionConfig({
       electionId: election.id,
       title: election.title,
       candidateIds: candidates.map((candidate) => candidate.id),
@@ -341,12 +344,11 @@ async function publishConfiguration(election: Election): Promise<void> {
   }
 }
 
-/** Turnout and ledger health for the monitoring screen. */
+/** Turnout and ledger-derived figures for the monitoring screen. */
 export interface MonitoringSnapshot {
   election: Election;
   counts: ElectionCounts;
   rings: { total: number; published: number };
-  ledger: { nodes: number; reachable: number; height: number } | null;
   rejectedSubmissions: number | null;
   /** Per-candidate totals, only once voting has closed. */
   tally: Record<string, number> | null;
@@ -363,17 +365,18 @@ export interface MonitoringSnapshot {
 export async function getMonitoringSnapshot(id: string): Promise<MonitoringSnapshot> {
   const election = await getElection(id);
 
-  const [counts, ringSizes, ledger, rejected] = await Promise.all([
+  const ledger = chainFor(election);
+  const [counts, ringSizes, rejected] = await Promise.all([
     countsForElection(election.id),
     listRingsWithSizes(election.id),
-    chain.health().catch(() => null),
-    chain.getRejectedCount(election.id).catch(() => null),
+    ledger.getRejectedCount(election.id).catch(() => null),
   ]);
 
   const tally =
     election.status === "VOTING_CLOSED" || election.status === "TALLIED"
-      ? await chain.getTally(election.id).catch(() => null)
+      ? await ledger.getTally(election.id).catch(() => null)
       : null;
+
 
   return {
     election,
@@ -382,7 +385,6 @@ export async function getMonitoringSnapshot(id: string): Promise<MonitoringSnaps
       total: ringSizes.length,
       published: ringSizes.filter((entry) => entry.ring.publishedAt !== null).length,
     },
-    ledger,
     rejectedSubmissions: rejected,
     tally,
   };

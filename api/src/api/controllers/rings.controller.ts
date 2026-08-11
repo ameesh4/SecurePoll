@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import {
+  exportChainManifest,
   formRings,
   listRingDetails,
   previewFormation,
@@ -62,4 +63,26 @@ export async function publishRingsHandler(
   const { id } = parse(uuidParamSchema, req.params);
   const admin = currentAdmin(req);
   res.json({ data: await publishRings(id, admin) });
+}
+
+/**
+ * The election manifest a ledger node imports from disk (blockchain/ELECTION_MANIFEST.md).
+ *
+ * Served as a file download rather than a JSON envelope: the bytes are the artifact, and the
+ * digest recorded against each ring is computed over exactly these bytes. Wrapping them in the
+ * usual `{ data }` envelope would mean the thing the operator saves is not the thing the digest
+ * describes.
+ */
+export async function exportChainManifestHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const { id } = parse(uuidParamSchema, req.params);
+  const admin = currentAdmin(req);
+  const { serialized, digest } = await exportChainManifest(id, admin);
+
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="election-${id}.json"`);
+  res.setHeader("X-Manifest-Digest", digest);
+  res.send(serialized);
 }

@@ -27,6 +27,7 @@ import {
   updateElectionHandler,
 } from "../../controllers/elections.controller";
 import {
+  exportChainManifestHandler,
   formRingsHandler,
   listRingsHandler,
   previewPublishHandler,
@@ -62,6 +63,10 @@ router.post("/:id/rings/form", formRingsHandler);
 router.get("/:id/rings", listRingsHandler);
 router.get("/:id/rings/publish", previewPublishHandler);
 router.post("/:id/rings/publish", publishRingsHandler);
+
+// The manifest each ledger node imports from disk. Available from RINGS_FROZEN onwards so an
+// extra node can be brought up mid-election with the same electorate the others hold.
+router.get("/:id/chain-manifest", exportChainManifestHandler);
 
 router.get("/:id/ballot-access", listBallotAccess);
 router.post("/:id/ballot-access/issue", issueBallotAccess);

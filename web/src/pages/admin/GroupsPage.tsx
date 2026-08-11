@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError } from "../../api/client";
 import {
+  fetchChainManifest,
   fetchElection,
   fetchRingPreview,
   formRings,
@@ -83,6 +84,7 @@ export default function GroupsPage() {
 
   const canForm = election.data?.operations.formRings ?? false;
   const canPublish = election.data?.operations.publishRings ?? false;
+  const canExportManifest = election.data?.operations.exportChainManifest ?? false;
   const isSuperAdmin = admin?.role === "SUPER_ADMIN";
 
   async function run(action: () => Promise<string>) {
@@ -93,6 +95,36 @@ export default function GroupsPage() {
       setNotice(await action());
       preview.reload();
       election.reload();
+    } catch (caught) {
+      setNotice(toMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Downloads the manifest each ledger node imports from disk.
+   *
+   * The file is saved byte-for-byte as the server produced it — the digest recorded against
+   * every group is computed over exactly these bytes, so re-encoding here would produce a file
+   * that no longer matches its own digest. See blockchain/ELECTION_MANIFEST.md.
+   */
+  async function downloadManifest() {
+    if (busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const { body, filename } = await fetchChainManifest(id);
+      const url = URL.createObjectURL(new Blob([body], { type: "application/json" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename ?? `election-${id}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setNotice(
+        "Manifest downloaded. Place it beside each ledger node as election.json, or pass " +
+          "--election <path>. Every node needs the same file.",
+      );
     } catch (caught) {
       setNotice(toMessage(caught));
     } finally {
@@ -155,6 +187,16 @@ export default function GroupsPage() {
                 }
               >
                 {data && data.groups > 0 ? "Re-form with new shuffle" : "Form groups"}
+              </button>
+            ) : null}
+            {canExportManifest && data && data.groups > 0 ? (
+              <button
+                type="button"
+                className={btnSecondary}
+                disabled={busy}
+                onClick={() => void downloadManifest()}
+              >
+                Download manifest
               </button>
             ) : null}
             {canPublish && data && data.groups > 0 && !data.published ? (

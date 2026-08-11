@@ -1,15 +1,13 @@
 import { randomBytes } from "crypto";
 import type {
   ChainAdapter,
-  ChainHealth,
   ElectionConfig,
   EncodedPublicKey,
   PublishResult,
 } from "./types";
 
 /**
- * Development and test implementation. Holds published rings in process memory and invents
- * a plausible chain height so the monitoring screen has something to render.
+ * Development and test implementation. Holds published rings in process memory.
  *
  * The tally it returns is fabricated. That is safe here precisely because of the property
  * the real system is built around: this server has no ballots to tally, so there is nothing
@@ -19,10 +17,8 @@ import type {
 export class InMemoryChainAdapter implements ChainAdapter {
   private readonly rings = new Map<string, readonly EncodedPublicKey[]>();
   private readonly configs = new Map<string, ElectionConfig>();
-  private height = 84_000;
 
   private advance(): string {
-    this.height += 1;
     return `mem:${randomBytes(8).toString("hex")}`;
   }
 
@@ -57,7 +53,4 @@ export class InMemoryChainAdapter implements ChainAdapter {
     return 0;
   }
 
-  async health(): Promise<ChainHealth> {
-    return { nodes: 7, reachable: 7, height: this.height };
-  }
 }

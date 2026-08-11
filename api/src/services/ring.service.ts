@@ -17,8 +17,9 @@ import {
   markRingPublished,
 } from "../db/repository/rings.repository";
 import { AuditAction, type Election, type Voter } from "../db/schema";
-import { chain } from "../lib/chain";
+import { chainFor } from "../lib/chain";
 import { ConflictError, NotFoundError } from "../lib/errors";
+import { listCandidatesInOrder } from "./candidate.service";
 import { evaluatePublishGuards, type GuardReport } from "./guards.service";
 import { assertOperationAllowed, assertSuperAdmin } from "./lifecycle";
 
@@ -438,7 +439,11 @@ export async function publishRings(
     const publicKeys = members.map((member) => member.publicKey);
 
     try {
-      const { txRef } = await chain.publishRing(electionId, entry.ring.id, publicKeys);
+      const { txRef } = await chainFor(election).publishRing(
+        electionId,
+        entry.ring.id,
+        publicKeys,
+      );
       await markRingPublished(entry.ring.id, txRef, db);
       outcome.publishedGroups += 1;
     } catch (error) {
@@ -473,6 +478,140 @@ export async function publishRings(
   }
 
   return outcome;
+}
+
+/**
+ * The election manifest — how candidates and anonymity groups reach the ledger nodes.
+ *
+ * Format and rules: `blockchain/ELECTION_MANIFEST.md`. Consumed by `ElectionManifest::load`
+ * in `blockchain/src/election.rs`.
+ *
+ * Field order here is deliberate and must not be rearranged: `serializeManifest` relies on
+ * insertion order to produce stable bytes, and the digest of those bytes is what gets recorded
+ * as each ring's `chainTxRef`.
+ */
+export interface ChainManifest {
+  version: 1;
+  electionId: string;
+  title: string;
+  votingOpensAt: string | null;
+  votingClosesAt: string | null;
+  ringSize: number;
+  candidates: {
+    candidateId: string;
+    name: string;
+    affiliation: string | null;
+    ballotPosition: number;
+  }[];
+  rings: {
+    ringId: string;
+    index: number;
+    /** Ordered by `positionInRing`. Never sort or deduplicate — see below. */
+    publicKeys: string[];
+  }[];
+}
+
+export interface ChainManifestExport {
+  manifest: ChainManifest;
+  /** Exact bytes a node will read, and what `digest` is computed over. */
+  serialized: string;
+  /** `sha256:<hex>` over `serialized`. Reproducible by anyone holding the file. */
+  digest: string;
+}
+
+/** Stable serialization: two exports of the same election produce identical bytes. */
+export function serializeManifest(manifest: ChainManifest): string {
+  return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
+export function manifestDigest(serialized: string): string {
+  return `sha256:${createHash("sha256").update(serialized, "utf8").digest("hex")}`;
+}
+
+/**
+ * Builds the manifest for an election.
+ *
+ * Reads the same way `publishRings` does — `listRingsWithSizes` then `listRingMembers` per
+ * group — because that is the path that already guarantees members come back in
+ * `positionInRing` order. `listRingDetails` is not used here: it paginates and omits members.
+ *
+ * **Ring order is cryptographic.** Every challenge in an LSAG signature hashes the whole ring
+ * in sequence, so reordering `publicKeys` invalidates every ballot signed against that group,
+ * silently. The order arrives correct from the repository and is passed through untouched.
+ */
+export async function exportChainManifest(
+  electionId: string,
+  admin: { id: string },
+): Promise<ChainManifestExport> {
+  const election = await findElectionById(electionId);
+  if (!election) throw new NotFoundError("Election not found");
+
+  assertOperationAllowed("exportChainManifest", election);
+
+  const [groups, candidateList] = await Promise.all([
+    listRingsWithSizes(electionId),
+    listCandidatesInOrder(electionId),
+  ]);
+
+  if (groups.length === 0) {
+    throw new ConflictError(
+      "This election has no anonymity groups yet, so there is nothing for a ledger node to " +
+        "verify ballots against.",
+    );
+  }
+
+  const candidates = candidateList.candidates.map((candidate) => ({
+    candidateId: candidate.id,
+    name: candidate.name,
+    affiliation: candidate.affiliation,
+    ballotPosition: candidate.ballotPosition,
+  }));
+  if (candidates.length === 0) {
+    throw new ConflictError(
+      "This election has no candidates, so a ledger node would reject every ballot.",
+    );
+  }
+
+  const rings: ChainManifest["rings"] = [];
+  for (const entry of groups) {
+    const members = await listRingMembers(entry.ring.id);
+    rings.push({
+      ringId: entry.ring.id,
+      index: entry.ring.index,
+      publicKeys: members.map((member) => member.publicKey),
+    });
+  }
+
+  const manifest: ChainManifest = {
+    version: 1,
+    electionId: election.id,
+    title: election.title,
+    votingOpensAt: election.votingOpensAt?.toISOString() ?? null,
+    votingClosesAt: election.votingClosesAt?.toISOString() ?? null,
+    ringSize: election.ringSize,
+    candidates,
+    rings,
+  };
+
+  const serialized = serializeManifest(manifest);
+  const digest = manifestDigest(serialized);
+
+  await recordAuditEntry({
+    adminId: admin.id,
+    action: AuditAction.ChainManifestExported,
+    entityType: "election",
+    entityId: electionId,
+    electionId,
+    before: null,
+    after: {
+      digest,
+      groups: rings.length,
+      publicKeys: rings.reduce((total, ring) => total + ring.publicKeys.length, 0),
+      candidates: candidates.length,
+    },
+  });
+
+  return { manifest, serialized, digest };
 }
 
 export interface RingDetail {

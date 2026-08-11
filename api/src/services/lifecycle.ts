@@ -94,6 +94,7 @@ export type ElectionOperation =
   | "formRings"
   | "publishRings"
   | "issueTokens"
+  | "exportChainManifest"
   | "viewTally";
 
 const OPERATION_STATES: Record<ElectionOperation, readonly ElectionStatus[]> = {
@@ -108,6 +109,11 @@ const OPERATION_STATES: Record<ElectionOperation, readonly ElectionStatus[]> = {
   formRings: ["RINGS_FROZEN"],
   publishRings: ["RINGS_FROZEN"],
   issueTokens: ["RINGS_FROZEN", "VOTING_OPEN"],
+  // Exportable from the moment groups are frozen, and onwards — bringing an extra ledger node
+  // up mid-election needs the same manifest the others already hold. Refused before
+  // RINGS_FROZEN because a manifest exported while groups are still forming would seed nodes
+  // with a partial electorate.
+  exportChainManifest: ["RINGS_FROZEN", "VOTING_OPEN", "VOTING_CLOSED", "TALLIED"],
   viewTally: ["VOTING_CLOSED", "TALLIED"],
 };
 
@@ -118,6 +124,7 @@ const OPERATION_LABELS: Record<ElectionOperation, string> = {
   formRings: "Forming anonymity groups",
   publishRings: "Publishing anonymity groups",
   issueTokens: "Issuing ballot access",
+  exportChainManifest: "Exporting the election manifest",
   viewTally: "Viewing the result",
 };
 
@@ -158,6 +165,7 @@ export function availableOperations(
     formRings: isOperationAllowed("formRings", status),
     publishRings: isOperationAllowed("publishRings", status),
     issueTokens: isOperationAllowed("issueTokens", status),
+    exportChainManifest: isOperationAllowed("exportChainManifest", status),
     viewTally: isOperationAllowed("viewTally", status),
   };
 }

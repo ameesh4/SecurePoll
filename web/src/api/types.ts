@@ -97,6 +97,7 @@ export type ElectionOperation =
   | "formRings"
   | "publishRings"
   | "issueTokens"
+  | "exportChainManifest"
   | "viewTally";
 
 export interface Election {
@@ -109,6 +110,9 @@ export interface Election {
   votingOpensAt: string | null;
   votingClosesAt: string | null;
   ringSize: number;
+  /** Root node of this election's own ledger network. */
+  chainRootIp: string | null;
+  chainRootPort: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -151,7 +155,8 @@ export interface ElectionDetail extends ElectionSummary {
   transitions: ElectionStatus[];
   guards: GuardReport;
   unassignedVoters: number;
-  offices: { office: string; candidates: number }[];
+  /** Names on the ballot. The "at least 2 candidates" guard is decided on this. */
+  candidateCount: number;
 }
 
 /* ── Candidates ────────────────────────────────────────────────────────────────────────── */
@@ -159,7 +164,6 @@ export interface ElectionDetail extends ElectionSummary {
 export interface Candidate {
   id: string;
   electionId: string;
-  office: string;
   name: string;
   affiliation: string | null;
   photoUrl: string | null;
@@ -168,10 +172,45 @@ export interface Candidate {
   updatedAt: string;
 }
 
-export interface CandidateGroup {
-  office: string;
+/**
+ * The ballot: one flat, ordered list.
+ *
+ * There is no grouping by office. A voter has one key image per election, so exactly one ballot
+ * with one candidateId can ever be accepted — several seats in one election could never be voted.
+ * One election is one contest.
+ */
+export interface CandidateList {
   candidates: Candidate[];
   belowMinimum: boolean;
+}
+
+/* ── Ballot collection ─────────────────────────────────────────────────────────────────── */
+
+/**
+ * What a ballot-access credential buys: the anonymity group the bearer belongs to.
+ *
+ * Note what is absent — the caller's own index in `publicKeys`. The server refuses to say which
+ * member is you; the client derives its public key from the key file and finds itself. An index
+ * returned here would be a server-side record of exactly which ring member was about to sign.
+ */
+export interface RingRetrieval {
+  electionId: string;
+  electionTitle: string;
+  ringId: string;
+  /**
+   * Root node of this election's own ledger network — where the signed ballot goes. Null when no
+   * ledger has been recorded for the election, in which case there is nowhere to cast.
+   */
+  nodeUrl: string | null;
+  /** Ordered exactly as published. Reordering breaks every signature against this group. */
+  publicKeys: string[];
+  candidates: {
+    id: string;
+    name: string;
+    affiliation: string | null;
+    photoUrl: string | null;
+    ballotPosition: number;
+  }[];
 }
 
 /* ── Dashboard ─────────────────────────────────────────────────────────────────────────── */
@@ -186,18 +225,11 @@ export interface AttentionItem {
   actionLabel: string;
 }
 
-export interface LedgerHealth {
-  nodes: number;
-  reachable: number;
-  height: number;
-}
-
 export interface DashboardSummary {
   pendingRegistrations: number;
   approvedVoters: number;
   anonymityGroups: number;
   auditEntries: number;
-  ledger: LedgerHealth | null;
   attention: AttentionItem[];
   elections: ElectionSummary[];
   stages: { status: ElectionStatus; label: string }[];
@@ -291,7 +323,6 @@ export interface MonitoringSnapshot {
   election: Election;
   counts: ElectionCounts;
   rings: { total: number; published: number };
-  ledger: LedgerHealth | null;
   rejectedSubmissions: number | null;
   /** Read from the ledger, and only once voting has closed. Null while voting is open. */
   tally: Record<string, number> | null;

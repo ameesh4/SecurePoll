@@ -380,11 +380,19 @@ export interface RingRetrieval {
   electionId: string;
   electionTitle: string;
   ringId: string;
+  /**
+   * Where to send the signed ballot: the root node of *this election's* ledger network.
+   *
+   * Returned here rather than configured in the client because every election runs its own
+   * separate network, so no single baked-in address could serve them all. It discloses nothing
+   * new — the caller is already receiving the ring itself. Null when no ledger has been recorded
+   * for the election yet, in which case there is nowhere to cast a ballot.
+   */
+  nodeUrl: string | null;
   /** Ordered exactly as published. The client locates its own key in this list. */
   publicKeys: string[];
   candidates: {
     id: string;
-    office: string;
     name: string;
     affiliation: string | null;
     photoUrl: string | null;
@@ -395,26 +403,34 @@ export interface RingRetrieval {
 /**
  * Handles `POST /api/ring` — the one and only thing a ballot-access credential authorises.
  *
- * The credential is spent here and never travels any further. What comes back is the ring the
- * bearer belongs to, and deliberately **not** their index in it: the client already knows its
- * own key and can find it, whereas an index returned by this server would be a record, in a
- * request this server logs, of exactly which member of the ring was about to sign. That single
- * field would undo the anonymity the ring exists to provide.
+ * The credential never travels any further than this call. What comes back is the ring the bearer
+ * belongs to, and deliberately **not** their index in it: the client already knows its own key
+ * and can find it, whereas an index returned by this server would be a record, in a request this
+ * server logs, of exactly which member of the ring was about to sign. That single field would
+ * undo the anonymity the ring exists to provide.
  *
  * Nothing about the ballot passes through here either — no vote, no signature, no key image.
  * The vote package goes from the voter's device straight to a ledger node.
+ *
+ * **Retrieval is idempotent until the token expires.** A voter who closes the tab, loses their
+ * connection mid-submission, or reloads the page can collect their ring again rather than being
+ * locked out pending an admin resend. This does not weaken anything: the ring is published to the
+ * ledger regardless, so re-reading it tells an attacker nothing they could not already read
+ * there, and without the matching private key it still cannot be signed against. What the
+ * credential actually gates is *learning which group you are in* — not casting.
+ *
+ * `redeemedAt` is therefore stamped on the **first** retrieval only, so it stays the timestamp of
+ * first collection and the turnout figure (`tokens redeemed / issued`) keeps counting voters
+ * rather than page loads.
  */
 export async function redeemForRing(presentedToken: string): Promise<RingRetrieval> {
   const presentedHash = hashToken(presentedToken);
 
   const { token, election } = await db.transaction(async (tx) => {
     const row = await lockTokenByHash(presentedHash, tx);
-    // Same error for "no such token", "already spent" and "expired". Distinguishing them
-    // would confirm to an unauthenticated caller that a given token had once been valid.
+    // Same error for "no such token" and "expired". Distinguishing them would confirm to an
+    // unauthenticated caller that a given token had once been valid.
     if (!row || !hashesMatch(row.tokenHash, presentedHash)) {
-      throw new UnauthorizedError("This ballot access link is not valid");
-    }
-    if (row.redeemedAt) {
       throw new UnauthorizedError("This ballot access link is not valid");
     }
     if (row.expiresAt <= new Date()) {
@@ -427,9 +443,11 @@ export async function redeemForRing(presentedToken: string): Promise<RingRetriev
       throw new ConflictError("Voting is not open for this election");
     }
 
-    // Marked spent inside the same transaction as the lock, so two simultaneous redemptions
-    // cannot both be served.
-    await markTokenRedeemed(row.id, tx);
+    // First retrieval only. Stamped inside the same transaction as the lock, so two simultaneous
+    // first-retrievals cannot both claim to be the first.
+    if (!row.redeemedAt) {
+      await markTokenRedeemed(row.id, tx);
+    }
     return { token: row, election: found };
   });
 
@@ -452,10 +470,13 @@ export async function redeemForRing(presentedToken: string): Promise<RingRetriev
     electionId: election.id,
     electionTitle: election.title,
     ringId: ring.id,
+    nodeUrl:
+      election.chainRootIp && election.chainRootPort !== null
+        ? `http://${election.chainRootIp}:${election.chainRootPort}`
+        : null,
     publicKeys: members.map((member) => member.publicKey),
     candidates: candidateRows.map((candidate) => ({
       id: candidate.id,
-      office: candidate.office,
       name: candidate.name,
       affiliation: candidate.affiliation,
       photoUrl: candidate.photoUrl,

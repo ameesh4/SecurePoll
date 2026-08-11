@@ -122,16 +122,6 @@ export default function DashboardPage() {
               value={data.anonymityGroups.toLocaleString()}
               note="a ballot is signed on behalf of a whole group"
             />
-            <Stat
-              label="Ledger"
-              value={data.ledger ? data.ledger.reachable : "—"}
-              suffix={data.ledger ? ` of ${data.ledger.nodes} nodes` : undefined}
-              note={
-                data.ledger
-                  ? `height ${data.ledger.height.toLocaleString()}`
-                  : "ledger did not respond"
-              }
-            />
           </StatStrip>
 
           <div className="px-7 py-6">

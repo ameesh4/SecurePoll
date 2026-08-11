@@ -59,6 +59,9 @@ export const AuditAction = {
 
   RingsFormed: "rings.formed",
   RingsPublished: "rings.published",
+  // The manifest carries every public key in the electorate, so exporting it is a disclosure
+  // worth recording even though it changes nothing.
+  ChainManifestExported: "chain.manifest_exported",
 
   TokensIssued: "tokens.issued",
   TokenResent: "token.resent",

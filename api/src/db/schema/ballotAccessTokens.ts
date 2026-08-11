@@ -16,7 +16,7 @@ import { emailDeliveryStatus } from "./enums";
 import { voters } from "./voters";
 
 /**
- * The `Token` model from the project context — a single-use bearer credential emailed to an
+ * The `Token` model from the project context — a bearer credential emailed to an
  * approved voter. Named for what it authorises, because what it authorises is narrower than
  * "token" suggests and the narrowness is the point.
  *

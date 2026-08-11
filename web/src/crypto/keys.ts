@@ -1,18 +1,17 @@
-import { ristretto255 } from "@noble/curves/ed25519.js";
-import { bytesToNumberLE, numberToBytesLE } from "@noble/curves/utils.js";
+import { derivePublicKey, fromBase64Url, generateKeyPair, toBase64Url } from "./lrs";
 
 /**
- * TEMPORARY. This is a stopgap so the registration page can produce a real keypair before
- * the LRS library exists. Once `lrs` ships its `generateKeyPair()` (context doc §5.4) this
- * file should be deleted and the import swapped, so that key generation and signing share
- * one implementation rather than drifting apart.
+ * Voter-facing key helpers for the registration and key-replacement pages.
  *
- * The scheme is fixed by that document: ristretto255, private key a scalar in [1, q-1],
- * public key P = x·G.
+ * Key generation itself now lives in the LRS library (`./lrs`, per SECUREPOLL_CONTEXT.md
+ * §5.4): this module is a thin adapter that presents the library's raw-bytes `KeyPair` as
+ * the base64url strings the pages display, download, and send to the server. There is now
+ * exactly one implementation of scalar/point generation — the library's — so signing and
+ * registration can never drift apart. The functions below are presentation/IO only and are
+ * deliberately NOT part of the LRS cryptographic surface.
  */
 
-const Point = ristretto255.Point;
-const SCALAR_BYTES = 32;
+export { toBase64Url };
 
 export interface VoterKeyPair {
   /** 32-byte little-endian scalar, base64url. Never transmitted. */
@@ -21,33 +20,70 @@ export interface VoterKeyPair {
   publicKey: string;
 }
 
-function randomScalar(): bigint {
-  const order = Point.Fn.ORDER;
-  // Reducing 64 random bytes rather than 32 keeps the result statistically uniform over
-  // [0, q-1]; reducing exactly 32 would skew towards small values.
-  const wide = crypto.getRandomValues(new Uint8Array(64));
-  const scalar = bytesToNumberLE(wide) % order;
-  // A zero private key has public key = identity and can never produce a valid signature.
-  return scalar === 0n ? 1n : scalar;
-}
-
-export function toBase64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
 /**
  * Runs entirely in the browser. The private key is returned to the caller and must never be
  * put in a request body — the whole anonymity argument rests on the server never holding it.
  */
 export function generateVoterKeyPair(): VoterKeyPair {
-  const scalar = randomScalar();
-  const publicKey = Point.BASE.multiply(scalar).toBytes();
+  const { privateKey, publicKey } = generateKeyPair();
   return {
-    privateKey: toBase64Url(numberToBytesLE(scalar, SCALAR_BYTES)),
+    privateKey: toBase64Url(privateKey),
     publicKey: toBase64Url(publicKey),
   };
+}
+
+/**
+ * Reads back the key file `downloadKeyFile` wrote.
+ *
+ * Both halves are validated rather than trusted, and the second check is the one that matters:
+ * the public key is **re-derived from the private key** and compared against the one written in
+ * the file. Without that, a corrupted or hand-edited file would sail through here and fail much
+ * later as a signature that simply does not verify — with nothing pointing at the key as the
+ * cause. Failing at load turns a baffling rejection into a clear "this file is damaged".
+ *
+ * Throws with a message suitable for showing to a voter.
+ */
+export function parseKeyFile(contents: string): VoterKeyPair {
+  const field = (label: string): string | null => {
+    for (const line of contents.split(/\r?\n/)) {
+      const [key, ...rest] = line.split(":");
+      if (key?.trim() === label) return rest.join(":").trim();
+    }
+    return null;
+  };
+
+  const privateKey = field("private_key");
+  if (!privateKey) {
+    throw new Error(
+      "That file does not look like a SecurePoll voting key — no private_key line was found.",
+    );
+  }
+
+  let derived: string;
+  try {
+    // fromBase64Url rejects malformed encodings; bytesToScalar inside derivePublicKey rejects a
+    // wrong length and any value at or above the group order.
+    const bytes = fromBase64Url(privateKey);
+    // Zero is in range but degenerate: its public key is the identity, which can never produce a
+    // signature that verifies. Caught here so it reads as a damaged file rather than as a
+    // mysterious "you are not in this group" later.
+    if (bytes.every((byte) => byte === 0)) {
+      throw new Error("zero private key");
+    }
+    derived = toBase64Url(derivePublicKey(bytes));
+  } catch {
+    throw new Error("The private key in that file is not a valid voting key.");
+  }
+
+  const stated = field("public_key");
+  if (stated && stated !== derived) {
+    throw new Error(
+      "That key file is damaged: its two halves do not match. Use the file you downloaded when " +
+        "you registered, without editing it.",
+    );
+  }
+
+  return { privateKey, publicKey: derived };
 }
 
 /**

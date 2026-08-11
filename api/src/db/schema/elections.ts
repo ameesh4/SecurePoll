@@ -23,6 +23,14 @@ export const elections = pgTable(
     /** Target members per LRS ring for this election. */
     ringSize: integer("ring_size").notNull().default(10),
 
+    /**
+     * Root node of this election's ledger network. Each election runs its own separate
+     * blockchain, so the address belongs to the election rather than to global config. Null
+     * until an operator records one; the in-memory stub stands in until then.
+     */
+    chainRootIp: text("chain_root_ip"),
+    chainRootPort: integer("chain_root_port"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -31,6 +39,10 @@ export const elections = pgTable(
     // configurable policy value (default 10) checked at ring-formation time; this is the
     // absolute floor below which the scheme is meaningless.
     check("elections_ring_size_min", sql`${t.ringSize} >= 2`),
+    check(
+      "elections_chain_root_port_range",
+      sql`${t.chainRootPort} is null or (${t.chainRootPort} > 0 and ${t.chainRootPort} <= 65535)`,
+    ),
     check(
       "elections_voting_window_valid",
       sql`${t.votingOpensAt} is null or ${t.votingClosesAt} is null or ${t.votingClosesAt} > ${t.votingOpensAt}`,

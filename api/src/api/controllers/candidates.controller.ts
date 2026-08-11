@@ -2,9 +2,9 @@ import type { Request, Response } from "express";
 import {
   addCandidate,
   editCandidate,
-  getCandidatesByOffice,
+  listCandidatesInOrder,
   removeCandidate,
-  reorderOffice,
+  reorderCandidates,
 } from "../../services/candidate.service";
 import { currentAdmin } from "../middleware/auth";
 import { parse } from "../middleware/validate";
@@ -20,7 +20,7 @@ export async function listCandidatesHandler(
   res: Response,
 ): Promise<void> {
   const { id } = parse(uuidParamSchema, req.params);
-  res.json({ data: { offices: await getCandidatesByOffice(id) } });
+  res.json({ data: await listCandidatesInOrder(id) });
 }
 
 export async function createCandidateHandler(
@@ -60,8 +60,8 @@ export async function reorderCandidatesHandler(
   res: Response,
 ): Promise<void> {
   const { id } = parse(uuidParamSchema, req.params);
-  const { office, candidateIds } = parse(candidateReorderSchema, req.body);
+  const { candidateIds } = parse(candidateReorderSchema, req.body);
   const admin = currentAdmin(req);
-  const candidates = await reorderOffice(id, office, candidateIds, admin.id);
+  const candidates = await reorderCandidates(id, candidateIds, admin.id);
   res.json({ data: { candidates } });
 }

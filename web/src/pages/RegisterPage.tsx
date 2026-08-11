@@ -47,7 +47,13 @@ function Stepper({ step }: { step: 1 | 2 | 3 }) {
   );
 }
 
-export function VoterShell({ children }: { children: React.ReactNode }) {
+export function VoterShell({
+  children,
+  kicker = "Voter registration",
+}: {
+  children: React.ReactNode;
+  kicker?: string;
+}) {
   return (
     <main className="min-h-screen bg-[#d9d7d6] grid place-items-start sm:place-items-center py-0 sm:py-10 px-0 sm:px-4">
       <div className="w-full max-w-[520px] bg-bg sm:border-2 sm:border-ink/40 flex flex-col min-h-screen sm:min-h-0">
@@ -55,7 +61,7 @@ export function VoterShell({ children }: { children: React.ReactNode }) {
           <span className="font-extrabold text-[15px]">
             SECURE<span className="text-accent">POLL</span>
           </span>
-          <span className="ml-auto text-[11.5px] text-ink/55">Voter registration</span>
+          <span className="ml-auto text-[11.5px] text-ink/55">{kicker}</span>
         </div>
         {children}
         <div className="px-6 py-3.5 border-t-2 border-ink/40 flex gap-3.5 text-[11px] text-ink/55">

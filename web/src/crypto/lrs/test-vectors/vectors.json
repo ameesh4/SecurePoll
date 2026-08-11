@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "group": "ristretto255",
+  "encoding": "base64url (no padding)",
+  "note": "See WIRE_FORMAT.md. Scalars are 32-byte little-endian < q; points are 32-byte canonical compressed ristretto255.",
+  "hp": {
+    "input_publicKey": "9hmjC7LPC-5dZ_vsfQ1S9tOO0jJs2WOD7dhNWvNjbWo",
+    "input_electionId": "election-2026",
+    "output_point": "vunFsyc-VnPCUh-4JlWOPYtCKGR5aq5j_OrStVFx3lE"
+  },
+  "hs": {
+    "input_utf8": "SECUREPOLL test H_s input",
+    "output_scalar": "G1d0OL_2S8F93LWGV5PKVESbOFw49br9fKCzFmnQaQE"
+  },
+  "vectors": [
+    {
+      "name": "size2-idx0",
+      "description": "smallest valid ring, signer at index 0",
+      "electionId": "election-2026",
+      "ringId": "ring-A",
+      "candidateId": "cand-1",
+      "ring": [
+        "cMS5gMPm5G74rk-brfM_sZlMky50rwJ2yZKgk7bDpBM",
+        "xmwuIs8lCqHg6Clv4-ak7u7pPel8m9vB1acgL6M_v3A"
+      ],
+      "signerIndex": 0,
+      "message": "U0VDVVJFUE9MTC92MS92b3RlDQAAAGVsZWN0aW9uLTIwMjYGAAAAcmluZy1BBgAAAGNhbmQtMQ",
+      "signature": "AQIAAADebmtBeCyMKPlKVBMnXjqlwbBs9zBDIzxBSB6rO1lyDjQvEQIj90hz0LbwBSy526nNmzzBfSyh1zYxX3Y_RJJ3810KwlgcriOAUse4WKBryoWtkaF8ZD_6yK8sWDHsEASOk5ixWjPM8BPT9KK2P5RTTJqtIWS9AEYsoc2BDtWTDQ",
+      "expected": true
+    },
+    {
+      "name": "size3-idx2",
+      "description": "ring of 3, signer at last index",
+      "electionId": "election-2026",
+      "ringId": "ring-B",
+      "candidateId": "cand-2",
+      "ring": [
+        "7pCQC7Xqc99KKB-1nNzTaQCzteB6aundozH1iDju-BY",
+        "4M0GkyVymyfMOmoTq89jpr1c0vKRSsATz-x9ssAgrlQ",
+        "TgfjO-x5hT655DfXjauw4d3AVrJmQUvMLQJc6D6pPUU"
+      ],
+      "signerIndex": 2,
+      "message": "U0VDVVJFUE9MTC92MS92b3RlDQAAAGVsZWN0aW9uLTIwMjYGAAAAcmluZy1CBgAAAGNhbmQtMg",
+      "signature": "AQMAAAAfNPerk8TOdgMuPPq6X6E1EzFq4x-qYm72WblaYaySBKrQhIJNG9tSLIow1UaICwZQO6ip2DJQYtQ7MMbsuFpZ81-Abpckb8kie79gyfm31RwEtbzyHCbB5_P9HBtewAjON3luwjI05Z0sFGuEZ63QzQmm2SKSCTqiMP25UTDOC1PoplE0ci3XJI8HHLA_WypvBCUz3DBGMW9kL9ja9zsO",
+      "expected": true
+    },
+    {
+      "name": "size10-idx5",
+      "description": "default ring size, signer in the middle",
+      "electionId": "election-2026",
+      "ringId": "ring-C",
+      "candidateId": "cand-3",
+      "ring": [
+        "zhtzw5EroSQxgk3ooJiBYlmnePET4OhYl0-GmLp-7S4",
+        "aGyjt34V63vTXRIWDIPzt7Z2VKO3AOHUtI8g-C_yjRk",
+        "HqZRKyQQc20fsaj3HPvcFMsQ6SjTDhcluG4CZkVRYhk",
+        "gPvyo1Fkj4x1thXd9BFRZ5xwAMspAIFu-FhUtPv0n10",
+        "2oBhbQfnknCLaw4qZ89Sm0bq_RZ1UAmwe-3uewz51nQ",
+        "GnPgCpxoQ5CWhBHxBsZiAokhFTAMAYD2j2kcxswVDRk",
+        "OndEGDLVZuyj_7U4rYQyL1S5ClpAOxWMP7O-bs-4hx8",
+        "_lIe7l2gocjCvSFVRGOqXeBEFhZ0E3-7yoUiUGJYuyI",
+        "4uenPs7LShteZsrT2lvwD5GBoPoPgu1zrc-BNuXNuG0",
+        "GEVGcPpwl4MxVY362yRaHWLLGYOYYryKctSpEZbYB0o"
+      ],
+      "signerIndex": 5,
+      "message": "U0VDVVJFUE9MTC92MS92b3RlDQAAAGVsZWN0aW9uLTIwMjYGAAAAcmluZy1DBgAAAGNhbmQtMw",
+      "signature": "AQoAAADYGzvOnIbt_jEWZROXS6hRJm9zzPodm66S3hshfwO7ALybL-nDzF5SJuC_QMjLXVobrzQc_lUSWJm2m3Fw48t3Xa1M27A0V33XZMJSAaudOxvXmbXM0eg1nq1ZpsESrQooBDp2ZcOO4VAQ5LXjl10ctLjqU-p_on68emVeRmJbCiABTx_SXiO3cNOy3zdfPJFDbHJD098d4O5lSVE3TMAKnLSpZvqEmLCmWdYKeoiFj0QzN75ubLi0rJHyzgwPFQa-e3lfQ0xUDnCI4tH8ZKlbedC4S-GyVEHqlFf3HB3CBIV3pKg7gqiUo4iTAFo0glGOUd43DRoCE8ZRl8g1-7cP0y94J1XXWeBccRLjDbRwGUBJXKb382TBkws4sqDILgHbIgvmoR8n4U5TH9Hj2f43xgY1fv4tz-7zknoYZmZXCtg-gLGJibVSeOhHvKfgqX7CofKK1Jdc5XKHKbmSwMUBcEpH7zZRuUGjIV1i954lRU4q78CSDzcGbwl9mBHz7gE",
+      "expected": true
+    },
+    {
+      "name": "size10-tampered-message",
+      "description": "flipping one message byte must fail verification",
+      "electionId": "election-2026",
+      "ringId": "ring-C",
+      "candidateId": "cand-3",
+      "ring": [
+        "zhtzw5EroSQxgk3ooJiBYlmnePET4OhYl0-GmLp-7S4",
+        "aGyjt34V63vTXRIWDIPzt7Z2VKO3AOHUtI8g-C_yjRk",
+        "HqZRKyQQc20fsaj3HPvcFMsQ6SjTDhcluG4CZkVRYhk",
+        "gPvyo1Fkj4x1thXd9BFRZ5xwAMspAIFu-FhUtPv0n10",
+        "2oBhbQfnknCLaw4qZ89Sm0bq_RZ1UAmwe-3uewz51nQ",
+        "GnPgCpxoQ5CWhBHxBsZiAokhFTAMAYD2j2kcxswVDRk",
+        "OndEGDLVZuyj_7U4rYQyL1S5ClpAOxWMP7O-bs-4hx8",
+        "_lIe7l2gocjCvSFVRGOqXeBEFhZ0E3-7yoUiUGJYuyI",
+        "4uenPs7LShteZsrT2lvwD5GBoPoPgu1zrc-BNuXNuG0",
+        "GEVGcPpwl4MxVY362yRaHWLLGYOYYryKctSpEZbYB0o"
+      ],
+      "signerIndex": 5,
+      "message": "UkVDVVJFUE9MTC92MS92b3RlDQAAAGVsZWN0aW9uLTIwMjYGAAAAcmluZy1DBgAAAGNhbmQtMw",
+      "signature": "AQoAAADYGzvOnIbt_jEWZROXS6hRJm9zzPodm66S3hshfwO7ALybL-nDzF5SJuC_QMjLXVobrzQc_lUSWJm2m3Fw48t3Xa1M27A0V33XZMJSAaudOxvXmbXM0eg1nq1ZpsESrQooBDp2ZcOO4VAQ5LXjl10ctLjqU-p_on68emVeRmJbCiABTx_SXiO3cNOy3zdfPJFDbHJD098d4O5lSVE3TMAKnLSpZvqEmLCmWdYKeoiFj0QzN75ubLi0rJHyzgwPFQa-e3lfQ0xUDnCI4tH8ZKlbedC4S-GyVEHqlFf3HB3CBIV3pKg7gqiUo4iTAFo0glGOUd43DRoCE8ZRl8g1-7cP0y94J1XXWeBccRLjDbRwGUBJXKb382TBkws4sqDILgHbIgvmoR8n4U5TH9Hj2f43xgY1fv4tz-7zknoYZmZXCtg-gLGJibVSeOhHvKfgqX7CofKK1Jdc5XKHKbmSwMUBcEpH7zZRuUGjIV1i954lRU4q78CSDzcGbwl9mBHz7gE",
+      "expected": false
+    }
+  ]
+}
