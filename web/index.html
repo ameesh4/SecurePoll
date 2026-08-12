@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- The ballot link carries a bearer credential in its query string. Without this, that
+         token can leak to any third-party request through the Referer header. -->
+    <meta name="referrer" content="no-referrer" />
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

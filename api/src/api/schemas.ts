@@ -75,6 +75,10 @@ export const electionCreateSchema = z.object({
   // The floor of 2 is the schema's absolute minimum; the real policy minimum is enforced
   // against RING_MIN_SIZE in the ring service, which is where the number is meaningful.
   ringSize: z.coerce.number().int().min(2).max(1000).optional(),
+  // Root node of this election's own ledger network. Each election runs a separate blockchain,
+  // so the address belongs here rather than in global config.
+  chainRootIp: z.string().trim().min(1).max(255).nullish(),
+  chainRootPort: z.coerce.number().int().min(1).max(65535).nullish(),
 });
 
 export const electionUpdateSchema = electionCreateSchema.partial();
@@ -93,7 +97,6 @@ export const electionTransitionSchema = z.object({
 /* ── Candidates ────────────────────────────────────────────────────────────────────────── */
 
 export const candidateCreateSchema = z.object({
-  office: z.string().trim().min(2, "Name the office being contested").max(120),
   name: z.string().trim().min(2, "Give the candidate's full name").max(160),
   affiliation: z.string().trim().max(160).nullish(),
   photoUrl: z.url("Enter a valid URL").max(500).nullish(),
@@ -103,7 +106,6 @@ export const candidateCreateSchema = z.object({
 export const candidateUpdateSchema = candidateCreateSchema.partial();
 
 export const candidateReorderSchema = z.object({
-  office: z.string().trim().min(2).max(120),
   candidateIds: z.array(z.uuid()).min(1, "List the candidates in their new order"),
 });
 

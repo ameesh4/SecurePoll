@@ -31,20 +31,17 @@ export interface ElectionConfig {
   votingClosesAt: Date;
 }
 
-export interface ChainHealth {
-  /** Nodes this server is configured to talk to. */
-  nodes: number;
-  /** How many of them answered the most recent probe. */
-  reachable: number;
-  /** Height of the longest chain the reachable nodes agree on. */
-  height: number;
-}
-
 export interface PublishResult {
   /** Opaque handle the node returns, stored on the ring so publication is provable. */
   txRef: string;
 }
 
+/**
+ * Note there is no `health()`. Each election runs its own separate ledger network, so a single
+ * "is the chain up" reading has no subject; and under file-based manifest import this server
+ * never contacts a node during publication, so reachability is not a precondition for anything
+ * it does.
+ */
 export interface ChainAdapter {
   /**
    * Publishes one ring's ordered public keys. Order is part of the cryptographic contract —
@@ -72,5 +69,4 @@ export interface ChainAdapter {
    */
   getRejectedCount(electionId: string): Promise<number>;
 
-  health(): Promise<ChainHealth>;
 }

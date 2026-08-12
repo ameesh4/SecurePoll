@@ -122,6 +122,8 @@ const EMPTY = {
   votingOpensAt: "",
   votingClosesAt: "",
   ringSize: "10",
+  chainRootIp: "",
+  chainRootPort: "",
 };
 
 /**
@@ -157,6 +159,8 @@ export function NewElectionPage() {
           ? new Date(values.votingClosesAt).toISOString()
           : null,
         ringSize: Number(values.ringSize),
+        chainRootIp: values.chainRootIp.trim() || null,
+        chainRootPort: values.chainRootPort.trim() ? Number(values.chainRootPort) : null,
       });
       navigate(`/admin/elections/${result.election.id}`);
     } catch (caught) {
@@ -200,6 +204,39 @@ export function NewElectionPage() {
             />
             <span className="text-[11.5px] text-ink/55">
               How many voters share a group. Larger means stronger anonymity; the minimum is 10.
+            </span>
+          </div>
+          <div className={field}>
+            <label className={label} htmlFor="chainRootIp">
+              Ledger root node IP
+            </label>
+            <input
+              id="chainRootIp"
+              className={input}
+              placeholder="127.0.0.1"
+              value={values.chainRootIp}
+              onChange={(event) => set("chainRootIp", event.target.value)}
+            />
+            <span className="text-[11.5px] text-ink/55">
+              This election runs its own blockchain network. Leave blank until you have one.
+            </span>
+          </div>
+          <div className={field}>
+            <label className={label} htmlFor="chainRootPort">
+              Ledger root node port
+            </label>
+            <input
+              id="chainRootPort"
+              type="number"
+              min={1}
+              max={65535}
+              className={input}
+              placeholder="8000"
+              value={values.chainRootPort}
+              onChange={(event) => set("chainRootPort", event.target.value)}
+            />
+            <span className="text-[11.5px] text-ink/55">
+              The root node's HTTP port, not the port peers use to talk to each other.
             </span>
           </div>
           <div className={`${field} md:col-span-2`}>

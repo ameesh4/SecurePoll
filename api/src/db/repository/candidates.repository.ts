@@ -1,4 +1,4 @@
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { asc, eq, max, sql } from "drizzle-orm";
 import { db } from "../drizzle";
 import type { Executor } from "../executor";
 import { candidates, type Candidate, type NewCandidate } from "../schema";
@@ -25,7 +25,7 @@ export async function findCandidateById(
   return rows[0];
 }
 
-/** Ordered as they appear on the ballot: by office, then by position within it. */
+/** Ordered as they appear on the ballot. */
 export async function listCandidates(
   electionId: string,
   executor: Executor = db,
@@ -34,7 +34,7 @@ export async function listCandidates(
     .select()
     .from(candidates)
     .where(eq(candidates.electionId, electionId))
-    .orderBy(asc(candidates.office), asc(candidates.ballotPosition));
+    .orderBy(asc(candidates.ballotPosition));
 }
 
 export async function updateCandidate(
@@ -56,41 +56,32 @@ export async function deleteCandidate(id: string, executor: Executor = db): Prom
   await executor.delete(candidates).where(eq(candidates.id, id));
 }
 
-/** Next free ballot slot in an office, so callers can append without picking a number. */
+/** Next free ballot slot, so callers can append without picking a number. */
 export async function nextBallotPosition(
   electionId: string,
-  office: string,
   executor: Executor = db,
 ): Promise<number> {
   const rows = await executor
     .select({ value: max(candidates.ballotPosition) })
     .from(candidates)
-    .where(and(eq(candidates.electionId, electionId), eq(candidates.office, office)));
+    .where(eq(candidates.electionId, electionId));
   return (rows[0]?.value ?? 0) + 1;
 }
 
-export interface OfficeTally {
-  office: string;
-  candidates: number;
-}
-
 /**
- * Candidate count per contested office.
+ * How many candidates an election has.
  *
- * This is what the "at least two candidates per office" guard is decided on. An office with
- * one name on it is not an election, it is an appointment, and letting voting open on one
- * would put a result in the ledger that nobody chose.
+ * This is what the "at least two candidates" guard is decided on. A single name is not an
+ * election, it is an appointment, and letting voting open on one would put a result in the
+ * ledger that nobody chose.
  */
-export async function countCandidatesByOffice(
+export async function countCandidates(
   electionId: string,
   executor: Executor = db,
-): Promise<OfficeTally[]> {
+): Promise<number> {
   const rows = await executor
-    .select({ office: candidates.office, value: sql<number>`count(*)::int` })
+    .select({ value: sql<number>`count(*)::int` })
     .from(candidates)
-    .where(eq(candidates.electionId, electionId))
-    .groupBy(candidates.office)
-    .orderBy(asc(candidates.office));
-
-  return rows.map((row) => ({ office: row.office, candidates: row.value }));
+    .where(eq(candidates.electionId, electionId));
+  return rows[0]?.value ?? 0;
 }

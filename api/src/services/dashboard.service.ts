@@ -2,7 +2,6 @@ import { countAuditEntries } from "../db/repository/auditLog.repository";
 import { countUnassignedVoters } from "../db/repository/elections.repository";
 import { countByStatus } from "../db/repository/registrations.repository";
 import type { ElectionStatus } from "../db/schema";
-import { chain } from "../lib/chain";
 import { evaluateTransitionGuards } from "./guards.service";
 import { listElectionSummaries, type ElectionSummary } from "./election.service";
 import { allowedTransitions } from "./lifecycle";
@@ -31,7 +30,6 @@ export interface DashboardSummary {
   approvedVoters: number;
   anonymityGroups: number;
   auditEntries: number;
-  ledger: { nodes: number; reachable: number; height: number } | null;
   attention: AttentionItem[];
   elections: ElectionSummary[];
 }
@@ -42,10 +40,11 @@ function nextForwardStage(status: ElectionStatus): ElectionStatus | null {
 }
 
 export async function getDashboard(): Promise<DashboardSummary> {
-  const [registrationCounts, auditEntries, ledger, elections] = await Promise.all([
+  // No ledger panel here: each election has its own network, so there is no single chain whose
+  // health this could report.
+  const [registrationCounts, auditEntries, elections] = await Promise.all([
     countByStatus(),
     countAuditEntries(),
-    chain.health().catch(() => null),
     listElectionSummaries(),
   ]);
 
@@ -94,7 +93,7 @@ export async function getDashboard(): Promise<DashboardSummary> {
         severity: "action",
         title: `${entry.election.title} is ready to close registration`,
         detail:
-          "Every registration has been reviewed and every office is contested. Closing registration is irreversible and fixes the candidate list.",
+          "Every registration has been reviewed and the ballot has at least two candidates. Closing registration is irreversible and fixes the candidate list.",
         electionId: entry.election.id,
         href: `/admin/elections/${entry.election.id}`,
         actionLabel: "Review pre-flight",
@@ -191,7 +190,6 @@ export async function getDashboard(): Promise<DashboardSummary> {
     approvedVoters: registrationCounts.APPROVED,
     anonymityGroups: elections.reduce((total, entry) => total + entry.counts.rings, 0),
     auditEntries,
-    ledger,
     attention,
     elections,
   };

@@ -16,48 +16,33 @@ import { ConflictError, NotFoundError } from "../lib/errors";
 import { assertOperationAllowed } from "./lifecycle";
 
 /**
- * Ballot positions are validated to stay well below this, so shifting a whole office up by it
+ * Ballot positions are validated to stay well below this, so shifting the whole list up by it
  * is guaranteed to land in unoccupied numbers. Used by the reorder below.
  */
 const REORDER_OFFSET = 10_000;
 
 export interface CandidateInput {
-  office: string;
   name: string;
   affiliation?: string | null;
   photoUrl?: string | null;
   ballotPosition?: number;
 }
 
-export interface CandidateGroup {
-  office: string;
+export interface CandidateList {
   candidates: Candidate[];
-  /** Voting cannot open on an office with fewer than two names. */
+  /** Voting cannot open on an election with fewer than two names. */
   belowMinimum: boolean;
 }
 
-/** Candidates grouped by office in ballot order, which is how the ballot itself reads. */
-export async function getCandidatesByOffice(
+/** The candidates in ballot order, which is how the ballot itself reads. */
+export async function listCandidatesInOrder(
   electionId: string,
-): Promise<CandidateGroup[]> {
-  const rows = await listCandidates(electionId);
-
-  const groups = new Map<string, Candidate[]>();
-  for (const candidate of rows) {
-    const existing = groups.get(candidate.office);
-    if (existing) existing.push(candidate);
-    else groups.set(candidate.office, [candidate]);
-  }
-
-  return [...groups.entries()].map(([office, candidates]) => ({
-    office,
-    candidates,
-    belowMinimum: candidates.length < 2,
-  }));
+): Promise<CandidateList> {
+  const candidates = await listCandidates(electionId);
+  return { candidates, belowMinimum: candidates.length < 2 };
 }
 
-const POSITION_TAKEN =
-  "Another candidate already holds that ballot position for this office";
+const POSITION_TAKEN = "Another candidate already holds that ballot position";
 
 /**
  * Loads the election with a lock and refuses if candidates are no longer editable.
@@ -83,16 +68,14 @@ export async function addCandidate(
   return db.transaction(async (tx) => {
     await assertEditable(electionId, tx);
 
-    const office = input.office.trim();
     const ballotPosition =
-      input.ballotPosition ?? (await nextBallotPosition(electionId, office, tx));
+      input.ballotPosition ?? (await nextBallotPosition(electionId, tx));
 
     let candidate: Candidate;
     try {
       candidate = await createCandidate(
         {
           electionId,
-          office,
           name: input.name.trim(),
           affiliation: input.affiliation?.trim() || null,
           photoUrl: input.photoUrl?.trim() || null,
@@ -115,7 +98,6 @@ export async function addCandidate(
         electionId,
         before: null,
         after: {
-          office: candidate.office,
           name: candidate.name,
           ballotPosition: candidate.ballotPosition,
         },
@@ -129,7 +111,6 @@ export async function addCandidate(
 
 function candidateSnapshot(candidate: Candidate) {
   return {
-    office: candidate.office,
     name: candidate.name,
     affiliation: candidate.affiliation,
     ballotPosition: candidate.ballotPosition,
@@ -151,7 +132,6 @@ export async function editCandidate(
       updated = await updateCandidate(
         candidateId,
         {
-          ...(input.office === undefined ? {} : { office: input.office.trim() }),
           ...(input.name === undefined ? {} : { name: input.name.trim() }),
           ...(input.affiliation === undefined
             ? {}
@@ -215,31 +195,28 @@ export async function removeCandidate(
 }
 
 /**
- * Rewrites ballot order within one office.
+ * Rewrites the ballot order.
  *
  * Applied as a whole list rather than one candidate at a time because positions are unique
- * per office: swapping two candidates with two separate updates collides on the intermediate
+ * per election: swapping two candidates with two separate updates collides on the intermediate
  * state. Every row is therefore parked at `position + REORDER_OFFSET` first, which vacates
  * the low numbers entirely before any row claims its new one. (Negatives would be the obvious
  * parking spot, but the table's check constraint requires positions to be positive — the
  * constraint is right and the workaround is to move up rather than down.)
  */
-export async function reorderOffice(
+export async function reorderCandidates(
   electionId: string,
-  office: string,
   orderedCandidateIds: readonly string[],
   adminId: string,
 ): Promise<Candidate[]> {
   return db.transaction(async (tx) => {
     await assertEditable(electionId, tx);
 
-    const existing = (await listCandidates(electionId, tx)).filter(
-      (candidate) => candidate.office === office,
-    );
+    const existing = await listCandidates(electionId, tx);
 
     if (existing.length !== orderedCandidateIds.length) {
       throw new ConflictError(
-        "The reorder must list every candidate for this office exactly once",
+        "The reorder must list every candidate for this election exactly once",
         { expected: existing.length, received: orderedCandidateIds.length },
       );
     }
@@ -247,7 +224,7 @@ export async function reorderOffice(
     const known = new Set(existing.map((candidate) => candidate.id));
     for (const id of orderedCandidateIds) {
       if (!known.has(id)) {
-        throw new ConflictError("That candidate does not belong to this office");
+        throw new ConflictError("That candidate does not belong to this election");
       }
     }
 
@@ -265,17 +242,12 @@ export async function reorderOffice(
         entityType: "election",
         entityId: electionId,
         electionId,
-        before: {
-          office,
-          order: existing.map((candidate) => candidate.id),
-        },
-        after: { office, order: [...orderedCandidateIds] },
+        before: { order: existing.map((candidate) => candidate.id) },
+        after: { order: [...orderedCandidateIds] },
       },
       tx,
     );
 
-    return (await listCandidates(electionId, tx)).filter(
-      (candidate) => candidate.office === office,
-    );
+    return listCandidates(electionId, tx);
   });
 }

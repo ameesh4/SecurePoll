@@ -1,5 +1,5 @@
 import { env } from "../config/env";
-import { countCandidatesByOffice } from "../db/repository/candidates.repository";
+import { countCandidates } from "../db/repository/candidates.repository";
 import {
   countUnassignedVoters,
   countUnpublishedRings,
@@ -8,7 +8,6 @@ import {
 import { countByStatus } from "../db/repository/registrations.repository";
 import { listRingsWithSizes } from "../db/repository/rings.repository";
 import type { Election, ElectionStatus } from "../db/schema";
-import { chain } from "../lib/chain";
 import { ConflictError } from "../lib/errors";
 
 /**
@@ -23,7 +22,7 @@ export interface GuardCheck {
   key: string;
   label: string;
   passed: boolean;
-  /** Extra context shown beside the label, e.g. "4 of 5 offices". */
+  /** Extra context shown beside the label, e.g. "3 candidates". */
   detail?: string;
 }
 
@@ -36,29 +35,17 @@ function report(checks: GuardCheck[]): GuardReport {
   return { checks, passed: checks.every((check) => check.passed) };
 }
 
-interface OfficeState {
-  offices: { office: string; candidates: number }[];
-  belowMinimum: { office: string; candidates: number }[];
-}
-
-async function readOffices(electionId: string): Promise<OfficeState> {
-  const offices = await countCandidatesByOffice(electionId);
-  return { offices, belowMinimum: offices.filter((office) => office.candidates < 2) };
-}
-
-function contestedCheck(state: OfficeState): GuardCheck {
+function contestedCheck(candidates: number): GuardCheck {
   return {
     key: "candidatesContested",
-    label: "At least 2 candidates for every office",
-    passed: state.offices.length > 0 && state.belowMinimum.length === 0,
+    label: "At least 2 candidates",
+    passed: candidates >= 2,
     detail:
-      state.offices.length === 0
+      candidates === 0
         ? "no candidates recorded"
-        : state.belowMinimum.length === 0
-          ? `${state.offices.length} offices contested`
-          : state.belowMinimum
-              .map((office) => `${office.office} has ${office.candidates}`)
-              .join(", "),
+        : candidates === 1
+          ? "only 1 candidate — an election needs a choice"
+          : `${candidates} candidates`,
   };
 }
 
@@ -69,17 +56,17 @@ function contestedCheck(state: OfficeState): GuardCheck {
  * The candidate check belongs *here*, not only on opening voting, and that placement is the
  * whole reason this function exists separately. Candidates are immutable from RINGS_FROZEN
  * onwards, because a ballot's signature commits to a candidate id. So an election that
- * entered RINGS_FROZEN with an uncontested office would be stuck: it could not open voting
+ * entered RINGS_FROZEN with only one candidate would be stuck: it could not open voting
  * (the guard fails) and could not add the missing candidate (the operation is no longer
  * legal). Checking it on the way in is what keeps that state unreachable.
  */
 export async function evaluateCloseRegistrationGuards(
   election: Election,
 ): Promise<GuardReport> {
-  const [counts, registrationCounts, officeState] = await Promise.all([
+  const [counts, registrationCounts, candidateCount] = await Promise.all([
     countsForElection(election.id),
     countByStatus(),
-    readOffices(election.id),
+    countCandidates(election.id),
   ]);
 
   return report([
@@ -103,7 +90,7 @@ export async function evaluateCloseRegistrationGuards(
             ? `${counts.eligibleVoters} approved — at least ${env.RING_MIN_SIZE} needed to form one group`
             : `${counts.eligibleVoters} approved`,
     },
-    contestedCheck(officeState),
+    contestedCheck(candidateCount),
   ]);
 }
 
@@ -116,17 +103,15 @@ export async function evaluateCloseRegistrationGuards(
  * to repair it, because the ledger already holds the consequence.
  */
 export async function evaluatePublishGuards(election: Election): Promise<GuardReport> {
-  const [counts, unassigned, ringSizes, registrationCounts, officeState, health] =
-    await Promise.all([
-      countsForElection(election.id),
-      countUnassignedVoters(election.id),
-      listRingsWithSizes(election.id),
-      countByStatus(),
-      readOffices(election.id),
-      // A ledger that cannot be reached is a publication that would half-succeed, so this is
-      // a check rather than something discovered mid-loop.
-      chain.health().catch(() => null),
-    ]);
+  // No ledger-reachability check: publication is now the act of exporting a manifest that
+  // nodes import from disk, so no node needs to be up for it to succeed.
+  const [counts, unassigned, ringSizes, registrationCounts, candidateCount] = await Promise.all([
+    countsForElection(election.id),
+    countUnassignedVoters(election.id),
+    listRingsWithSizes(election.id),
+    countByStatus(),
+    countCandidates(election.id),
+  ]);
 
   const smallest = ringSizes.length
     ? Math.min(...ringSizes.map((entry) => entry.size))
@@ -165,15 +150,7 @@ export async function evaluatePublishGuards(election: Election): Promise<GuardRe
           ? "queue is clear"
           : `${registrationCounts.PENDING} pending`,
     },
-    contestedCheck(officeState),
-    {
-      key: "ledgerReachable",
-      label: "Ledger nodes reachable",
-      passed: health !== null && health.nodes > 0 && health.reachable === health.nodes,
-      detail: health
-        ? `${health.reachable} of ${health.nodes} reachable`
-        : "ledger did not respond",
-    },
+    contestedCheck(candidateCount),
   ]);
 }
 
@@ -182,11 +159,11 @@ export async function evaluatePublishGuards(election: Election): Promise<GuardRe
  * candidates, every ring published, and every approved voter in exactly one ring.
  */
 export async function evaluateVotingOpenGuards(election: Election): Promise<GuardReport> {
-  const [counts, unassigned, unpublished, officeState, ringSizes] = await Promise.all([
+  const [counts, unassigned, unpublished, candidateCount, ringSizes] = await Promise.all([
     countsForElection(election.id),
     countUnassignedVoters(election.id),
     countUnpublishedRings(election.id),
-    readOffices(election.id),
+    countCandidates(election.id),
     listRingsWithSizes(election.id),
   ]);
 
@@ -195,7 +172,7 @@ export async function evaluateVotingOpenGuards(election: Election): Promise<Guar
     : 0;
 
   return report([
-    contestedCheck(officeState),
+    contestedCheck(candidateCount),
     {
       key: "ringsFormed",
       label: "Anonymity groups formed",

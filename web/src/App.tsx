@@ -3,6 +3,8 @@ import AdminLayout from "./components/AdminLayout";
 import RequireAuth from "./components/RequireAuth";
 import { AuthProvider } from "./auth/AuthContext";
 import RegisterPage from "./pages/RegisterPage";
+import VotePage from "./pages/VotePage";
+import VerifyVotePage from "./pages/VerifyVotePage";
 import ReplaceKeyPage from "./pages/ReplaceKeyPage";
 import VoterStatusPage from "./pages/VoterStatusPage";
 import AdminsPage from "./pages/admin/AdminsPage";
@@ -26,6 +28,10 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/register" replace />} />
           <Route path="/register" element={<RegisterPage />} />
+          {/* Path fixed by the ballot-access email: ${VOTER_APP_BASE_URL}/ballot?access=<token> */}
+          <Route path="/ballot" element={<VotePage />} />
+          {/* Reached from the "ballot cast" screen, or directly by a voter checking later. */}
+          <Route path="/verify" element={<VerifyVotePage />} />
           {/* Reached from the link in the voter's confirmation email. */}
           <Route path="/status/:id" element={<VoterStatusPage />} />
           {/* Reached from the status page when a voter has lost their key file. */}
@@ -50,11 +56,20 @@ export default function App() {
             <Route path="elections" element={<ElectionsPage />} />
             <Route path="elections/new" element={<NewElectionPage />} />
             <Route path="elections/:id" element={<ElectionDetailPage />} />
-            <Route path="elections/:id/candidates" element={<CandidatesPage />} />
+            <Route
+              path="elections/:id/candidates"
+              element={<CandidatesPage />}
+            />
             <Route path="elections/:id/voters" element={<VotersPage />} />
             <Route path="elections/:id/groups" element={<GroupsPage />} />
-            <Route path="elections/:id/ballot-access" element={<BallotAccessPage />} />
-            <Route path="elections/:id/monitoring" element={<MonitoringPage />} />
+            <Route
+              path="elections/:id/ballot-access"
+              element={<BallotAccessPage />}
+            />
+            <Route
+              path="elections/:id/monitoring"
+              element={<MonitoringPage />}
+            />
             <Route path="key-replacements" element={<KeyRotationsPage />} />
             <Route path="audit" element={<AuditPage />} />
             {/* Super-admin only; the router refuses reviewers regardless of the hidden nav item. */}

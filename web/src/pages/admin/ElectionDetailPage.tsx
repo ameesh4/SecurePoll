@@ -181,6 +181,8 @@ export default function ElectionDetailPage() {
     votingOpensAt: toLocalInput(election.votingOpensAt),
     votingClosesAt: toLocalInput(election.votingClosesAt),
     ringSize: String(election.ringSize),
+    chainRootIp: election.chainRootIp ?? "",
+    chainRootPort: election.chainRootPort === null ? "" : String(election.chainRootPort),
   };
 
   function setValue(key: string, value: string) {
@@ -198,6 +200,10 @@ export default function ElectionDetailPage() {
         votingOpensAt: fromLocalInput(values.votingOpensAt ?? ""),
         votingClosesAt: fromLocalInput(values.votingClosesAt ?? ""),
         ringSize: Number(values.ringSize),
+        chainRootIp: (values.chainRootIp ?? "").trim() || null,
+        chainRootPort: (values.chainRootPort ?? "").trim()
+          ? Number(values.chainRootPort)
+          : null,
       });
       setDraft(null);
       setNotice("Saved.");
@@ -269,7 +275,7 @@ export default function ElectionDetailPage() {
         <Stat
           label="Candidates"
           value={counts.candidates}
-          note={`${data.offices.length} offices`}
+          note={`${data.candidateCount} on the ballot`}
         />
         <Stat
           label="Anonymity groups"
@@ -333,6 +339,38 @@ export default function ElectionDetailPage() {
                 value={values.ringSize}
                 disabled={!editable}
                 onChange={(event) => setValue("ringSize", event.target.value)}
+              />
+            </div>
+            <div className={field}>
+              <label className={label} htmlFor="chainRootIp">
+                Ledger root node IP
+              </label>
+              <input
+                id="chainRootIp"
+                className={input}
+                placeholder="127.0.0.1"
+                value={values.chainRootIp}
+                disabled={!editable}
+                onChange={(event) => setValue("chainRootIp", event.target.value)}
+              />
+              <span className="text-[11.5px] text-ink/55">
+                This election runs its own blockchain network.
+              </span>
+            </div>
+            <div className={field}>
+              <label className={label} htmlFor="chainRootPort">
+                Ledger root node port
+              </label>
+              <input
+                id="chainRootPort"
+                type="number"
+                min={1}
+                max={65535}
+                className={input}
+                placeholder="8000"
+                value={values.chainRootPort}
+                disabled={!editable}
+                onChange={(event) => setValue("chainRootPort", event.target.value)}
               />
             </div>
             <div className={`${field} md:col-span-2`}>
@@ -413,31 +451,27 @@ export default function ElectionDetailPage() {
                 </Link>
               }
             >
-              Offices &amp; candidates
+              Candidates
             </SectionRule>
 
-            {data.offices.length === 0 ? (
+            {data.candidateCount === 0 ? (
               <p className="text-[12.5px] text-ink/55">
-                No candidates yet. Voting cannot open until every office has at least two.
+                No candidates yet. Voting cannot open until the ballot has at least two.
               </p>
             ) : (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 border-2 border-ink/40 max-w-[820px]">
-                {data.offices.map((office) => (
-                  <div
-                    key={office.office}
-                    className="px-4 py-3.5 border-b border-r border-ink/40"
-                  >
-                    <div className="font-semibold text-[13.5px]">{office.office}</div>
-                    <div
-                      className={`text-[12px] ${
-                        office.candidates < 2 ? "text-accent-700" : "text-ink/55"
-                      }`}
-                    >
-                      {office.candidates} candidate{office.candidates === 1 ? "" : "s"}
-                      {office.candidates < 2 ? " · needs 2" : ""}
-                    </div>
-                  </div>
-                ))}
+              <div className="border-2 border-ink/40 max-w-[820px] px-4 py-3.5">
+                <div className="font-semibold text-[13.5px]">
+                  {data.candidateCount} on the ballot
+                </div>
+                <div
+                  className={`text-[12px] ${
+                    data.candidateCount < 2 ? "text-accent-700" : "text-ink/55"
+                  }`}
+                >
+                  {data.candidateCount < 2
+                    ? "needs at least 2 — an election needs a choice"
+                    : "the ballot is contested"}
+                </div>
               </div>
             )}
           </div>

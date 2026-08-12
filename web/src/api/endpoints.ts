@@ -1,18 +1,15 @@
-import { request } from "./client";
+import { request, requestText } from "./client";
 import type {
   AdminAccount,
   AdminProfile,
   AdminRole,
-  CreatedAdmin,
-  KeyReplacementOutcome,
-  KeyRotationPage,
-  KeyRotationRequest,
   AuditPage,
   AvailableVoterPage,
   BallotAccessView,
   BulkOutcome,
   Candidate,
-  CandidateGroup,
+  CandidateList,
+  CreatedAdmin,
   DashboardSummary,
   Election,
   ElectionDetail,
@@ -21,9 +18,11 @@ import type {
   ElectoratePage,
   EmailDeliveryStatus,
   GuardReport,
+  KeyReplacementOutcome,
+  KeyRotationPage,
+  KeyRotationRequest,
   LoginResult,
   MonitoringSnapshot,
-  PublishOutcome,
   Registration,
   RegistrationDetail,
   RegistrationQueue,
@@ -33,6 +32,7 @@ import type {
   RemoveOutcome,
   RingDetail,
   RingPreview,
+  RingRetrieval,
   TransferOutcome,
   TransitionPreview,
   Voter,
@@ -133,6 +133,9 @@ export interface ElectionDraft {
   votingOpensAt?: string | null;
   votingClosesAt?: string | null;
   ringSize?: number;
+  /** Root node of this election'''s own ledger network. */
+  chainRootIp?: string | null;
+  chainRootPort?: number | null;
 }
 
 export function createElection(body: ElectionDraft): Promise<{ election: Election }> {
@@ -171,12 +174,11 @@ export function transitionElection(
 export function fetchCandidates(
   electionId: string,
   signal?: AbortSignal,
-): Promise<{ offices: CandidateGroup[] }> {
+): Promise<CandidateList> {
   return request(`/admin/elections/${electionId}/candidates`, { auth: true, signal });
 }
 
 export interface CandidateDraft {
-  office: string;
   name: string;
   affiliation?: string | null;
   photoUrl?: string | null;
@@ -207,13 +209,12 @@ export function deleteCandidate(candidateId: string): Promise<{ ok: boolean }> {
 
 export function reorderCandidates(
   electionId: string,
-  office: string,
   candidateIds: string[],
 ): Promise<{ candidates: Candidate[] }> {
   return request(`/admin/elections/${electionId}/candidates/reorder`, {
     method: "POST",
     auth: true,
-    body: { office, candidateIds },
+    body: { candidateIds },
   });
 }
 
@@ -242,19 +243,12 @@ export function fetchRings(
   return request(`/admin/elections/${electionId}/rings?${query}`, { auth: true, signal });
 }
 
+/** Pre-flight for the dialog shown before a manifest download performs the first freeze. */
 export function previewPublish(
   electionId: string,
   signal?: AbortSignal,
 ): Promise<GuardReport> {
   return request(`/admin/elections/${electionId}/rings/publish`, { auth: true, signal });
-}
-
-/** Irreversible. Super-admin only, enforced server-side. */
-export function publishRings(electionId: string): Promise<PublishOutcome> {
-  return request(`/admin/elections/${electionId}/rings/publish`, {
-    method: "POST",
-    auth: true,
-  });
 }
 
 /* ── Ballot access ─────────────────────────────────────────────────────────────────────── */
@@ -530,4 +524,29 @@ export function changeOwnPassword(
     auth: true,
     body: { currentPassword, newPassword },
   });
+}
+
+/**
+ * Downloads the election manifest a ledger node imports from disk.
+ *
+ * Returns the raw bytes and the server's suggested filename; see
+ * `blockchain/ELECTION_MANIFEST.md` for the format and `X-Manifest-Digest` for the digest the
+ * server recorded against each group.
+ */
+export function fetchChainManifest(
+  electionId: string,
+): Promise<{ body: string; filename: string | null }> {
+  return requestText(`/admin/elections/${electionId}/chain-manifest`, { auth: true });
+}
+
+/* ── Voter: collecting a ballot ────────────────────────────────────────────────────────── */
+
+/**
+ * Spends a ballot-access credential for the voter's anonymity group.
+ *
+ * Unauthenticated: the token in the body *is* the authorisation. Idempotent until the token
+ * expires, so a reload or a failed submission is recoverable rather than a lockout.
+ */
+export function collectBallot(token: string): Promise<RingRetrieval> {
+  return request("/ring", { method: "POST", body: { token } });
 }

@@ -30,5 +30,11 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # IntelliJ based IDEs
 .idea
 
+# private keys written by db:seed-registrations
+/seed-keys
+
+# plaintext ballot-access tokens saved for `bun run vote` (dev/demo only, see demoTokenStore.ts)
+/demo-tokens
+
 # Finder (MacOS) folder config
 .DS_Store

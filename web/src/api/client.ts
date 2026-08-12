@@ -76,3 +76,50 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   return (payload as { data: T }).data;
 }
+
+/**
+ * Fetches a response body verbatim, without the `{ data }` envelope.
+ *
+ * Used for the election manifest: the digest recorded against each anonymity group is computed
+ * over exactly these bytes, so re-serializing them through JSON.parse/stringify would produce a
+ * file that no longer matches its own digest.
+ */
+export async function requestText(
+  path: string,
+  options: { auth?: boolean; signal?: AbortSignal } = {},
+): Promise<{ body: string; filename: string | null }> {
+  const headers: Record<string, string> = {};
+  if (options.auth) {
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, { headers, signal: options.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError(0, "NETWORK_ERROR", "Could not reach the server");
+  }
+
+  const body = await response.text();
+
+  if (!response.ok) {
+    let code = "UNKNOWN";
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const parsed = JSON.parse(body) as { error?: { code: string; message: string } };
+      if (parsed.error) {
+        code = parsed.error.code;
+        message = parsed.error.message;
+      }
+    } catch {
+      /* not a JSON error envelope; keep the status-based message */
+    }
+    throw new ApiError(response.status, code, message);
+  }
+
+  const disposition = response.headers.get("Content-Disposition");
+  const match = disposition?.match(/filename="([^"]+)"/);
+  return { body, filename: match?.[1] ?? null };
+}

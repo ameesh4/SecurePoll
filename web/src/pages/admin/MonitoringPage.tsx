@@ -12,7 +12,7 @@ import {
   Tag,
 } from "../../components/primitives";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { btnSecondary, mono } from "../../ui/classes";
+import { btnSecondary } from "../../ui/classes";
 
 function toMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Could not load monitoring.";
@@ -38,10 +38,10 @@ export default function MonitoringPage() {
   );
   const candidates = useAsyncData(loadCandidates, () => "");
 
-  const nameById = new Map<string, { name: string; office: string }>();
-  for (const group of candidates.data?.offices ?? []) {
+  const nameById = new Map<string, { name: string }>();
+  for (const group of [candidates.data ?? { candidates: [] }]) {
     for (const candidate of group.candidates) {
-      nameById.set(candidate.id, { name: candidate.name, office: candidate.office });
+      nameById.set(candidate.id, { name: candidate.name });
     }
   }
 
@@ -54,7 +54,7 @@ export default function MonitoringPage() {
     );
   }
 
-  const { election, counts, rings, ledger, rejectedSubmissions, tally } = data;
+  const { election, counts, rings, rejectedSubmissions, tally } = data;
   const issued = counts.tokensIssued;
   const collected = counts.tokensRedeemed;
   const turnout = issued === 0 ? 0 : (collected / issued) * 100;
@@ -65,7 +65,7 @@ export default function MonitoringPage() {
         .map(([candidateId, votes]) => ({
           candidateId,
           votes,
-          ...(nameById.get(candidateId) ?? { name: candidateId, office: "Unknown office" }),
+          ...(nameById.get(candidateId) ?? { name: candidateId }),
         }))
         .sort((a, b) => b.votes - a.votes)
     : [];
@@ -142,7 +142,6 @@ export default function MonitoringPage() {
                   <div className="flex justify-between items-baseline text-[13px] mb-1">
                     <span>
                       <strong className="font-semibold">{row.name}</strong>{" "}
-                      <span className="text-ink/55">· {row.office}</span>
                     </span>
                     <span className="font-extrabold tabular-nums">
                       {row.votes.toLocaleString()}
@@ -168,18 +167,6 @@ export default function MonitoringPage() {
           <Label className="mb-3">Ledger</Label>
           <div className="border-2 border-ink/40 mb-5">
             {[
-              {
-                label: "Nodes reachable",
-                value: ledger ? `${ledger.reachable} of ${ledger.nodes}` : "no response",
-              },
-              {
-                label: "Height",
-                value: ledger ? (
-                  <span className={mono}>{ledger.height.toLocaleString()}</span>
-                ) : (
-                  "—"
-                ),
-              },
               {
                 label: "Groups published",
                 value: `${rings.published} of ${rings.total}`,

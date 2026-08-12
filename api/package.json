@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node ./dist/src/index.js",
     "db:seed-admin": "bun run src/scripts/seedAdmin.ts",
+    "db:seed-registrations": "bun run src/scripts/seedRegistrations.ts",
+    "vote": "bun run src/scripts/vote.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

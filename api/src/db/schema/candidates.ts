@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
   check,
-  index,
   integer,
   pgTable,
   text,
@@ -24,11 +23,12 @@ import { elections } from "./elections";
  *    the election's status, because the rule is "no edits after RINGS_FROZEN" and that
  *    state lives on the parent row.
  *
- * `office` is an addition to the data model sketched in the project context, which carried
- * only a flat ballot `position`. The election being modelled fills several seats at once
- * (President, Treasurer, …) and the guard for opening voting is "at least two candidates
- * *per seat*" — a flat list cannot express that, and an uncontested seat would otherwise
- * slip through. Ballot position is then ordering *within* an office.
+ * The list is flat, matching the project context's §6.2B. An earlier `office` column grouped
+ * candidates into seats, which the scheme cannot support: a voter has one key image per election
+ * (`I = x·H_p(P ‖ electionId)`) and the node deduplicates on it, so exactly one ballot carrying
+ * exactly one `candidateId` can ever be accepted per voter per election. Several seats would have
+ * meant several ballots, and the second would have come back `DOUBLE_VOTE`. One election is one
+ * contest; run a separate election per seat.
  */
 export const candidates = pgTable(
   "candidates",
@@ -38,27 +38,19 @@ export const candidates = pgTable(
       .notNull()
       .references(() => elections.id, { onDelete: "restrict" }),
 
-    /** The seat being contested, e.g. "President". Free text: the set differs per election. */
-    office: text("office").notNull(),
     name: text("name").notNull(),
     /** Party, panel, or "Independent". Null when the election does not use affiliations. */
     affiliation: text("affiliation"),
     photoUrl: text("photo_url"),
-    /** Order on the printed ballot within `office`, 1-based. */
+    /** Order on the ballot, 1-based and unique within the election. */
     ballotPosition: integer("ballot_position").notNull(),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // Two candidates cannot share a slot on the same ballot section.
-    uniqueIndex("candidates_office_position_unique").on(
-      t.electionId,
-      t.office,
-      t.ballotPosition,
-    ),
-    // Backs the grouped-by-office read that both the ballot and the pre-flight guard use.
-    index("candidates_election_office_idx").on(t.electionId, t.office),
+    // Two candidates cannot share a slot on the same ballot.
+    uniqueIndex("candidates_election_position_unique").on(t.electionId, t.ballotPosition),
     check("candidates_ballot_position_positive", sql`${t.ballotPosition} >= 1`),
   ],
 );

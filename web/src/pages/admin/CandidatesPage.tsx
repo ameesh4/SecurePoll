@@ -18,14 +18,14 @@ function toMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Could not load candidates.";
 }
 
-const EMPTY_DRAFT = { office: "", name: "", affiliation: "", photoUrl: "" };
+const EMPTY_DRAFT = { name: "", affiliation: "", photoUrl: "" };
 
 /**
- * Screen 1f. Ballot order is the layout: candidates appear grouped by the office they contest,
- * in the order they will appear on the ballot, because that ordering is the thing being edited.
+ * Screen 1f. One flat ballot, shown in the order it will be presented, because that ordering is
+ * the thing being edited.
  *
- * An office with one name is outlined in the accent, because it is not a warning about tidiness
- * — voting cannot open on an uncontested office, and once registration closes this list is
+ * A ballot with one name is outlined in the accent, because it is not a warning about tidiness —
+ * voting cannot open on an uncontested election, and once registration closes this list is
  * permanent, so it has to be fixed *now* or the election deadlocks.
  */
 export default function CandidatesPage() {
@@ -62,7 +62,7 @@ export default function CandidatesPage() {
     }
   }
 
-  function move(office: string, list: Candidate[], index: number, delta: number) {
+  function move(list: Candidate[], index: number, delta: number) {
     const next = [...list];
     const target = index + delta;
     if (target < 0 || target >= next.length) return;
@@ -74,14 +74,14 @@ export default function CandidatesPage() {
     void run(async () => {
       await reorderCandidates(
         id,
-        office,
         next.map((candidate) => candidate.id),
       );
       return "Ballot order updated.";
     });
   }
 
-  const offices = candidates.data?.offices ?? [];
+  const ballot = candidates.data?.candidates ?? [];
+  const belowMinimum = candidates.data?.belowMinimum ?? true;
 
   return (
     <>
@@ -119,26 +119,24 @@ export default function CandidatesPage() {
       ) : null}
 
       <div className="px-7 py-6">
-        {offices.length === 0 ? (
+        {ballot.length === 0 ? (
           <Empty>
-            No candidates yet. Add at least two for every office being contested — voting cannot
+            No candidates yet. Add at least two — an election needs a choice, and voting cannot
             open otherwise.
           </Empty>
         ) : (
-          offices.map((group) => (
-            <div key={group.office} className="mb-7">
-              <SectionRule accent={group.belowMinimum}>
-                {group.office} · {group.candidates.length} candidate
-                {group.candidates.length === 1 ? "" : "s"}
-                {group.belowMinimum ? " · below minimum" : ""}
+          <div className="mb-7">
+              <SectionRule accent={belowMinimum}>
+                {ballot.length} candidate{ballot.length === 1 ? "" : "s"}
+                {belowMinimum ? " · below minimum, needs 2" : ""}
               </SectionRule>
 
               <div
                 className={`grid sm:grid-cols-2 lg:grid-cols-3 border-2 ${
-                  group.belowMinimum ? "border-accent" : "border-ink/40"
+                  belowMinimum ? "border-accent" : "border-ink/40"
                 }`}
               >
-                {group.candidates.map((candidate, index) => (
+                {ballot.map((candidate, index) => (
                   <div
                     key={candidate.id}
                     className="flex gap-3.5 p-4 border-b border-r border-ink/40"
@@ -174,15 +172,15 @@ export default function CandidatesPage() {
                             type="button"
                             className={btnGhost}
                             disabled={busy || index === 0}
-                            onClick={() => move(group.office, group.candidates, index, -1)}
+                            onClick={() => move(ballot, index, -1)}
                           >
                             Up
                           </button>
                           <button
                             type="button"
                             className={btnGhost}
-                            disabled={busy || index === group.candidates.length - 1}
-                            onClick={() => move(group.office, group.candidates, index, 1)}
+                            disabled={busy || index === ballot.length - 1}
+                            onClick={() => move(ballot, index, 1)}
                           >
                             Down
                           </button>
@@ -205,12 +203,12 @@ export default function CandidatesPage() {
                   </div>
                 ))}
 
-                {group.belowMinimum && editable ? (
+                {belowMinimum && editable ? (
                   <div className="p-4 border-b border-r border-ink/40 grid place-items-start content-center">
                     <button
                       type="button"
                       className={btn}
-                      onClick={() => setDraft({ ...EMPTY_DRAFT, office: group.office })}
+                      onClick={() => setDraft(EMPTY_DRAFT)}
                     >
                       Add second candidate
                     </button>
@@ -220,30 +218,13 @@ export default function CandidatesPage() {
                   </div>
                 ) : null}
               </div>
-            </div>
-          ))
+          </div>
         )}
 
         {editable ? (
           <div className="border-2 border-ink/40 p-5 max-w-[820px]">
             <SectionRule>{editing ? `Edit ${editing.name}` : "Add a candidate"}</SectionRule>
             <div className="grid md:grid-cols-2 gap-4">
-              <div className={field}>
-                <label className={label} htmlFor="office">
-                  Office contested
-                </label>
-                <input
-                  id="office"
-                  className={input}
-                  placeholder="e.g. President"
-                  value={editing ? editing.office : draft.office}
-                  onChange={(event) =>
-                    editing
-                      ? setEditing({ ...editing, office: event.target.value })
-                      : setDraft({ ...draft, office: event.target.value })
-                  }
-                />
-              </div>
               <div className={field}>
                 <label className={label} htmlFor="name">
                   Name
@@ -304,7 +285,6 @@ export default function CandidatesPage() {
                     onClick={() =>
                       void run(async () => {
                         await updateCandidate(editing.id, {
-                          office: editing.office,
                           name: editing.name,
                           affiliation: editing.affiliation || null,
                           photoUrl: editing.photoUrl || null,
@@ -329,11 +309,10 @@ export default function CandidatesPage() {
                 <button
                   type="button"
                   className={btn}
-                  disabled={busy || draft.office.trim().length < 2 || draft.name.trim().length < 2}
+                  disabled={busy || draft.name.trim().length < 2}
                   onClick={() =>
                     void run(async () => {
                       await createCandidate(id, {
-                        office: draft.office.trim(),
                         name: draft.name.trim(),
                         affiliation: draft.affiliation.trim() || null,
                         photoUrl: draft.photoUrl.trim() || null,
