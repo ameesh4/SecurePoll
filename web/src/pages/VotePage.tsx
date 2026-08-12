@@ -4,7 +4,7 @@ import { ApiError } from "../api/client";
 import { collectBallot } from "../api/endpoints";
 import type { RingRetrieval } from "../api/types";
 import { Alert, Label } from "../components/primitives";
-import { fingerprintOf, parseKeyFile, type VoterKeyPair } from "../crypto/keys";
+import { fingerprintOf, loadStoredKeyPair, parseKeyFile, type VoterKeyPair } from "../crypto/keys";
 import {
   encodeMessage,
   fromBase64Url,
@@ -71,9 +71,15 @@ export default function VotePage() {
   const [error, setError] = useState<string | null>(
     token ? null : "This page needs the ballot link from your email.",
   );
-  const [key, setKey] = useState<VoterKeyPair | null>(null);
+  // If this browser holds a copy from registration or a key replacement (VOTING_KEY_STORAGE_KEY),
+  // use it without making the voter go find their key file again.
+  const [storedKey] = useState(() => loadStoredKeyPair());
+  const [key, setKey] = useState<VoterKeyPair | null>(storedKey);
   const [keyError, setKeyError] = useState<string | null>(null);
   const [pasted, setPasted] = useState("");
+  // Manual key entry starts collapsed whenever a stored key was found — most voters land here
+  // with a usable key already in hand. Opens on its own only when there was nothing to auto-load.
+  const [manualKeyOpen, setManualKeyOpen] = useState(!storedKey);
   const [choice, setChoice] = useState<string | null>(null);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -298,6 +304,7 @@ export default function VotePage() {
                 setKey(null);
                 setChoice(null);
                 setPasted("");
+                setManualKeyOpen(true);
               }}
             >
               Use a different key
@@ -305,59 +312,74 @@ export default function VotePage() {
           </div>
         ) : (
           <>
-            <p className="text-[12.5px] mt-0 mb-3">
-              Load the key file you downloaded when you registered — it is the only thing that can
-              sign your ballot, and nobody else holds a copy.
-            </p>
-            <input
-              ref={fileInput}
-              type="file"
-              accept=".securepoll,.txt,text/plain"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                void file.text().then(loadKeyText);
-              }}
-            />
-            <button type="button" className={btn} onClick={() => fileInput.current?.click()}>
-              Choose key file
-            </button>
+            {key && signerIndex < 0 ? (
+              <div className="mb-3">
+                <Alert title="This key is not in your group">
+                  That key is valid, but it is not one of the {ballot.publicKeys.length} in the
+                  group this link belongs to. It is probably from a different election, or a
+                  replacement key issued after the group was frozen. Contact the election office,
+                  or load a different key below.
+                </Alert>
+              </div>
+            ) : (
+              <p className="text-[12.5px] mt-0 mb-3">
+                No saved voting key was found on this device.
+              </p>
+            )}
 
-            <details className="mt-3.5">
-              <summary className="text-[12.5px] cursor-pointer">
-                Paste the key instead
+            <details
+              open={manualKeyOpen}
+              onToggle={(event) => setManualKeyOpen(event.currentTarget.open)}
+            >
+              <summary className="text-[12.5px] font-semibold cursor-pointer">
+                Load a key file
               </summary>
-              <textarea
-                className={`${textarea} mt-2`}
-                rows={3}
-                placeholder="private_key: …"
-                value={pasted}
-                onChange={(event) => setPasted(event.target.value)}
-              />
-              <button
-                type="button"
-                className={btnSecondary}
-                disabled={pasted.trim().length === 0}
-                onClick={() => loadKeyText(pasted)}
-              >
-                Use this key
-              </button>
+              <div className="mt-3">
+                <p className="text-[12.5px] mt-0 mb-3">
+                  Load the key file you downloaded when you registered — it is the only thing
+                  that can sign your ballot, and nobody else holds a copy.
+                </p>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept=".securepoll,.txt,text/plain"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    void file.text().then(loadKeyText);
+                  }}
+                />
+                <button type="button" className={btn} onClick={() => fileInput.current?.click()}>
+                  Choose key file
+                </button>
+
+                <details className="mt-3.5">
+                  <summary className="text-[12.5px] cursor-pointer">
+                    Paste the key instead
+                  </summary>
+                  <textarea
+                    className={`${textarea} mt-2`}
+                    rows={3}
+                    placeholder="private_key: …"
+                    value={pasted}
+                    onChange={(event) => setPasted(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className={btnSecondary}
+                    disabled={pasted.trim().length === 0}
+                    onClick={() => loadKeyText(pasted)}
+                  >
+                    Use this key
+                  </button>
+                </details>
+              </div>
             </details>
 
             {keyError ? (
               <div className="mt-3">
                 <Alert title="That key cannot be used">{keyError}</Alert>
-              </div>
-            ) : null}
-
-            {key && signerIndex < 0 ? (
-              <div className="mt-3">
-                <Alert title="This key is not in your group">
-                  That key is valid, but it is not one of the {ballot.publicKeys.length} in the
-                  group this link belongs to. It is probably from a different election, or a
-                  replacement key issued after the group was frozen. Contact the election office.
-                </Alert>
               </div>
             ) : null}
           </>

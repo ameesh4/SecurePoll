@@ -163,41 +163,6 @@ export default function QueuePage() {
       <PageHeader
         kicker="Manual vetting"
         title="Verification queue"
-        actions={
-          <>
-            <label className="flex items-center gap-2 text-[12.5px]">
-              <span className="text-ink/55">Enfranchise into</span>
-              <select
-                className={`${input} max-w-[220px]`}
-                value={electionId}
-                onChange={(event) =>
-                  update((next) => next.set("election", event.target.value))
-                }
-              >
-                <option value="">No election</option>
-                {openElections.map((entry) => (
-                  <option key={entry.election.id} value={entry.election.id}>
-                    {entry.election.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <input
-              className={`${input} w-[190px]`}
-              placeholder="Search name or ID"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") return;
-                update((next) => {
-                  if (searchInput) next.set("search", searchInput);
-                  else next.delete("search");
-                  next.delete("page");
-                });
-              }}
-            />
-          </>
-        }
       />
 
       <div className="flex flex-wrap items-center gap-3 px-7 py-3 border-b-2 border-ink/40">

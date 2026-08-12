@@ -7,13 +7,12 @@ import {
   downloadKeyFile,
   fingerprintOf,
   generateVoterKeyPair,
+  VOTING_KEY_STORAGE_KEY,
   type VoterKeyPair,
 } from "../crypto/keys";
 import { useAsyncData } from "../hooks/useAsyncData";
 import { btn, btnSecondary, mono, textarea } from "../ui/classes";
 import { VoterShell } from "./RegisterPage";
-
-const STORAGE_KEY = "securepoll.voting-key";
 
 function toMessage(error: unknown): string {
   if (error instanceof ApiError && error.status === 404) {
@@ -75,7 +74,7 @@ export default function ReplaceKeyPage() {
 
       try {
         localStorage.setItem(
-          STORAGE_KEY,
+          VOTING_KEY_STORAGE_KEY,
           JSON.stringify({ ...keyPair, registrationId: id }),
         );
       } catch {

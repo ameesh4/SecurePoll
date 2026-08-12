@@ -20,6 +20,33 @@ export interface VoterKeyPair {
   publicKey: string;
 }
 
+/** Where RegisterPage and ReplaceKeyPage save a copy of the key, if the voter opts in. */
+export const VOTING_KEY_STORAGE_KEY = "securepoll.voting-key";
+
+/**
+ * Reads back the key copy this browser may hold, if the voter opted in when registering or
+ * replacing a key (`VOTING_KEY_STORAGE_KEY`).
+ *
+ * Re-derives the public half the same way `parseKeyFile` does, so a value that has been
+ * tampered with or corrupted (rather than simply absent) is treated as no key at all instead of
+ * being handed to the signer.
+ */
+export function loadStoredKeyPair(): VoterKeyPair | null {
+  try {
+    const raw = localStorage.getItem(VOTING_KEY_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<VoterKeyPair>;
+    if (typeof parsed.privateKey !== "string" || typeof parsed.publicKey !== "string") {
+      return null;
+    }
+    const derived = toBase64Url(derivePublicKey(fromBase64Url(parsed.privateKey)));
+    if (derived !== parsed.publicKey) return null;
+    return { privateKey: parsed.privateKey, publicKey: parsed.publicKey };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Runs entirely in the browser. The private key is returned to the caller and must never be
  * put in a request body — the whole anonymity argument rests on the server never holding it.

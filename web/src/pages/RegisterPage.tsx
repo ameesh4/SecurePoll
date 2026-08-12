@@ -7,11 +7,10 @@ import {
   downloadKeyFile,
   fingerprintOf,
   generateVoterKeyPair,
+  VOTING_KEY_STORAGE_KEY,
   type VoterKeyPair,
 } from "../crypto/keys";
 import { btn, btnSecondary, field, input, label, mono } from "../ui/classes";
-
-const STORAGE_KEY = "securepoll.voting-key";
 
 const CONFLICT_LABELS: Record<string, string> = {
   nationalId: "national ID number",
@@ -137,7 +136,7 @@ export default function RegisterPage() {
       if (keepInBrowser) {
         try {
           localStorage.setItem(
-            STORAGE_KEY,
+            VOTING_KEY_STORAGE_KEY,
             JSON.stringify({ ...keyPair, registrationId: receipt.id }),
           );
         } catch {
