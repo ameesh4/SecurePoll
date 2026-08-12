@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "electionId": "8723c28a-e25f-4cf8-8a67-b0092525a660",
+  "title": "Election 7",
+  "votingOpensAt": null,
+  "votingClosesAt": null,
+  "ringSize": 10,
+  "candidates": [
+    {
+      "candidateId": "a22c8a8d-1912-48fe-831b-108691fb6445",
+      "name": "ABCD",
+      "affiliation": "ABCD",
+      "ballotPosition": 1
+    },
+    {
+      "candidateId": "fd074c8f-7dd7-4535-81a6-7ca3d9483b14",
+      "name": "EFGH",
+      "affiliation": "EFGH",
+      "ballotPosition": 2
+    },
+    {
+      "candidateId": "55faebf8-fef9-494e-9c68-815076a6a4d5",
+      "name": "IJKL",
+      "affiliation": "IJKL",
+      "ballotPosition": 3
+    }
+  ],
+  "rings": [
+    {
+      "ringId": "8b57dbf0-d6c8-448b-b086-374b0b72bb5c",
+      "index": 0,
+      "publicKeys": [
+        "xHEY_bAdNgz7KuIM_LGU3yhXfdh3HFKInfvg-swurAE",
+        "mvFjnqrPCe4M5eu65qUAWJg3pLA6y7Zrnn7S3TS3ARQ",
+        "bpqSF04AQ44m5ze0Otb7H6xmpVKCRtbHXls2lTYYCGY",
+        "xNzSVO3-QECwYVAXGVUto_2mZfO2YVJOBbnBoMsHAwQ",
+        "1qbQpYcXPud42uDVhSW4uBIkjaqOdENP-e1Ks0VrCHM",
+        "bDV_AQiBjHfmscqBILErc1NBs3O166Brt5-RpuDmbyU",
+        "5vNFirBZ2DUG5kHaf6cHcp8JB2FiVGlqKCtUB7lfIi4",
+        "2NoX5ykhogCw5Xgrfpxb3kmAkweEM9DwT8Dwx29Wcg0",
+        "MoWQqxWIn5HGzjlNJYtcxa5BhhwIlRIQgNivU06-9xc",
+        "nmodp2uoX0WqIJ5iZW61BuDtXjGwVsE8PwexT1X_X1Y",
+        "MmtjEU-0-t9TT0Rd_XNL1xjee5ELyOaotX8KeTwnaiM",
+        "1IpNRRZRccuExKPBlsiJx6jKTb9v9NChghFgeh8i0QQ"
+      ]
+    },
+    {
+      "ringId": "4b043d68-7636-4ba4-98d5-a768cae743f6",
+      "index": 1,
+      "publicKeys": [
+        "2LLJTH62JcBlF5AXDXb_Nux8lxoxRrrTJiNMm3KKqGE",
+        "mlUoZsOI-ww--wRKMIjhdge96k8CoI8t4pqexMhRNSQ",
+        "kMU4k3puZaqEmw47eb2JAjNBwyWSHxBkvyBw5GylNyk",
+        "OMI5E5OxLxnXVGYnJpFlGnU5JWsh_B5RbijfPwCRQGo",
+        "OlihZHJQKyavnYwa5m0TLUUPi6dn8HmFukOoN8xmtg0",
+        "7tzuU8w9zKvKGvGeC2Yy2sx71u9Q9lEPWxFf6uxzgjQ",
+        "gNhYFNo5n8LZ7y2Cfgc3HGRdDhHiLpFau7ws3PJycRA",
+        "IlQO2e-IS12LSVgJHDCREZwE-8uEhulvFhhIeX_k1W0",
+        "mJlohqHwvRLAyDLr_wbskulQCK3q7zbhsUORIIYhKVQ",
+        "zFKLSZqIXf465g2UQWalEXJe-dJbFyl8hJo12VU6Dwg",
+        "qP1BHOU4bQ9A2YXHu023pjvwd0yjlSJbnDywMVDTC1M"
+      ]
+    },
+    {
+      "ringId": "c4c32666-9e19-4513-8e4b-33f6090af8a3",
+      "index": 2,
+      "publicKeys": [
+        "CHTwJ0TC4fal_zbh9FiAWemh4i-NiwOLb64Jv1zyHDY",
+        "crKM5-L4t5IyMEprCxcGsbggpGveKVFIgvxi2llPbgw",
+        "kuFd1Y48pVpEmQwLE-BfFOeDLUz1BvYikXiu_1S_Cig",
+        "Ws_u2qgsKgi33e2KhjcmrUk8fLtSgWgzh8sSGgPOUXM",
+        "KAaXJ-NtP2QVod0r4OgL8SmvYu77_tskymhIU8PebwI",
+        "sAWoFmed31bD4rekF2Ep98gMb96NI3boKTBzZDjz6Bo",
+        "xCiaEvkmchyGRx3f_Rw4oyNYAVS65j38KdSQiCFfd2Y",
+        "CISPE4Dnmo4BCt_7MGoGWfKP-2iapvW9ahx6kA91TTU",
+        "JGX13-D5lyxW4xECyNrhBDVDV8bbNI3sjnrx3lo3Ii4",
+        "uJyrHC2EXxkgP-VSRH6SjxeBRAr2e0zK9wC57g7m_i0",
+        "kOa-YarUtZeO_wjoZTlSoA69I6gQuF-7VR3CNIfOmmU"
+      ]
+    }
+  ]
+}

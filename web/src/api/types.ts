@@ -95,7 +95,6 @@ export type ElectionOperation =
   | "manageCandidates"
   | "reviewVoters"
   | "formRings"
-  | "publishRings"
   | "issueTokens"
   | "exportChainManifest"
   | "viewTally";
@@ -270,12 +269,6 @@ export interface RingDetail {
   publishedAt: string | null;
   chainTxRef: string | null;
   redistributed: number;
-}
-
-export interface PublishOutcome {
-  publishedGroups: number;
-  alreadyPublished: number;
-  failed: { ringId: string; index: number; reason: string }[];
 }
 
 /* ── Ballot access ─────────────────────────────────────────────────────────────────────── */

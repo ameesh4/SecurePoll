@@ -63,7 +63,7 @@ export function sign(params: SignParams): RingSignature {
   // Defensive: the secret must actually correspond to the claimed index, otherwise the
   // signature would be silently unverifiable. Catching it here turns a confusing "verify
   // returns false" into an actionable error at signing time.
-  if (!pointsEqual(mulG(x), P[pi])) {
+  if (!pointsEqual(mulG(x), P[pi]!)) {
     throw new Error("privateKey does not match ring[signerIndex]");
   }
 
@@ -71,7 +71,7 @@ export function sign(params: SignParams): RingSignature {
   const H: CurvePoint[] = ring.map((bytes) => keyImageBase(bytes, electionId));
 
   // Key image I = x·H_p(P_π ‖ eid).
-  const image = mul(H[pi], x);
+  const image = mul(H[pi]!, x);
 
   // --- ring construction ---
   const alpha = randomScalar();
@@ -83,21 +83,21 @@ export function sign(params: SignParams): RingSignature {
   const c: bigint[] = new Array<bigint>(n);
   // Seed the challenge chain at the position AFTER the signer. The R-side uses the
   // signer's key-image base (α·H_p(P_π)), mirroring R_i = s_i·H_p(P_i) + c_i·I.
-  c[(pi + 1) % n] = challenge(message, ring, mulG(alpha), mul(H[pi], alpha));
+  c[(pi + 1) % n] = challenge(message, ring, mulG(alpha), mul(H[pi]!, alpha));
 
   // Walk the ring once, wrapping around; the final step (k = n-1) produces c_π.
   for (let k = 1; k < n; k++) {
     const i = (pi + k) % n;
-    const li = add(mulG(s[i]), mul(P[i], c[i])); // L_i = s_i·G + c_i·P_i
-    const ri = add(mul(H[i], s[i]), mul(image, c[i])); // R_i = s_i·H_p(P_i) + c_i·I
+    const li = add(mulG(s[i]!), mul(P[i]!, c[i]!)); // L_i = s_i·G + c_i·P_i
+    const ri = add(mul(H[i]!, s[i]!), mul(image, c[i]!)); // R_i = s_i·H_p(P_i) + c_i·I
     c[(i + 1) % n] = challenge(message, ring, li, ri);
   }
 
   // Close the loop with the secret: s_π = α − c_π·x  (mod q).
-  s[pi] = modQ(alpha - modQ(c[pi] * x));
+  s[pi] = modQ(alpha - modQ(c[pi]! * x));
 
   return {
-    c0: scalarToBytes(c[0]),
+    c0: scalarToBytes(c[0]!),
     s: s.map((si) => scalarToBytes(si)),
     keyImage: pointToBytes(image),
   };

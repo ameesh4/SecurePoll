@@ -32,10 +32,10 @@ const HEADER_BYTES = OFF_S;
 
 function readU32le(bytes: Uint8Array, offset: number): number {
   return (
-    (bytes[offset] |
-      (bytes[offset + 1] << 8) |
-      (bytes[offset + 2] << 16) |
-      (bytes[offset + 3] << 24)) >>>
+    (bytes[offset]! |
+      (bytes[offset + 1]! << 8) |
+      (bytes[offset + 2]! << 16) |
+      (bytes[offset + 3]! << 24)) >>>
     0
   );
 }
@@ -56,7 +56,7 @@ export function serializeSignature(sig: RingSignature): Uint8Array {
   out.set(sig.c0, OFF_C0);
   out.set(sig.keyImage, OFF_KEY_IMAGE);
   for (let i = 0; i < n; i++) {
-    const si = sig.s[i];
+    const si = sig.s[i]!;
     if (si.length !== SCALAR_BYTES) throw new Error(`s[${i}] must be 32 bytes`);
     out.set(si, OFF_S + i * SCALAR_BYTES);
   }

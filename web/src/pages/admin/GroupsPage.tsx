@@ -7,7 +7,6 @@ import {
   fetchRingPreview,
   formRings,
   previewPublish,
-  publishRings,
 } from "../../api/endpoints";
 import type { GuardReport, RingPreviewGroup } from "../../api/types";
 import { useAuth } from "../../auth/useAuth";
@@ -83,7 +82,6 @@ export default function GroupsPage() {
   const [guards, setGuards] = useState<GuardReport | null>(null);
 
   const canForm = election.data?.operations.formRings ?? false;
-  const canPublish = election.data?.operations.publishRings ?? false;
   const canExportManifest = election.data?.operations.exportChainManifest ?? false;
   const isSuperAdmin = admin?.role === "SUPER_ADMIN";
 
@@ -103,24 +101,28 @@ export default function GroupsPage() {
   }
 
   /**
-   * Downloads the manifest each ledger node imports from disk.
-   *
-   * The file is saved byte-for-byte as the server produced it — the digest recorded against
-   * every group is computed over exactly these bytes, so re-encoding here would produce a file
-   * that no longer matches its own digest. See blockchain/ELECTION_MANIFEST.md.
+   * Fetches the manifest and saves it, byte-for-byte as the server produced it — the digest
+   * recorded against every group is computed over exactly these bytes, so re-encoding here
+   * would produce a file that no longer matches its own digest. See
+   * blockchain/ELECTION_MANIFEST.md.
    */
+  async function saveManifest(): Promise<void> {
+    const { body, filename } = await fetchChainManifest(id);
+    const url = URL.createObjectURL(new Blob([body], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename ?? `election-${id}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /** Plain re-download once groups are already published — no freeze, no dialog. */
   async function downloadManifest() {
     if (busy) return;
     setBusy(true);
     setNotice(null);
     try {
-      const { body, filename } = await fetchChainManifest(id);
-      const url = URL.createObjectURL(new Blob([body], { type: "application/json" }));
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename ?? `election-${id}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      await saveManifest();
       setNotice(
         "Manifest downloaded. Place it beside each ledger node as election.json, or pass " +
           "--election <path>. Every node needs the same file.",
@@ -132,7 +134,7 @@ export default function GroupsPage() {
     }
   }
 
-  async function openPublishDialog() {
+  async function openFreezeDialog() {
     setDialogOpen(true);
     setDialogError(null);
     setGuards(null);
@@ -143,14 +145,21 @@ export default function GroupsPage() {
     }
   }
 
-  async function confirmPublish() {
+  /**
+   * Freezes group membership and downloads the manifest in one action — see
+   * `exportChainManifest` on the server. There is no separate publish step: the manifest
+   * export is the only place a "this was published" digest can come from, so this dialog's
+   * confirmation is what makes membership permanent.
+   */
+  async function confirmFreeze() {
     setBusy(true);
     setDialogError(null);
     try {
-      const outcome = await publishRings(id);
+      await saveManifest();
       setDialogOpen(false);
       setNotice(
-        `Published ${outcome.publishedGroups} groups. Membership is now permanent.`,
+        "Groups frozen and published. Membership is now permanent. Manifest downloaded — " +
+          "place it beside each ledger node as election.json.",
       );
       preview.reload();
       election.reload();
@@ -192,21 +201,13 @@ export default function GroupsPage() {
             {canExportManifest && data && data.groups > 0 ? (
               <button
                 type="button"
-                className={btnSecondary}
+                className={data.published ? btnSecondary : btn}
                 disabled={busy}
-                onClick={() => void downloadManifest()}
+                onClick={() =>
+                  data.published ? void downloadManifest() : void openFreezeDialog()
+                }
               >
-                Download manifest
-              </button>
-            ) : null}
-            {canPublish && data && data.groups > 0 && !data.published ? (
-              <button
-                type="button"
-                className={btn}
-                disabled={busy}
-                onClick={() => void openPublishDialog()}
-              >
-                Freeze &amp; publish…
+                {data.published ? "Download manifest" : "Freeze & download manifest…"}
               </button>
             ) : null}
           </>
@@ -378,7 +379,8 @@ export default function GroupsPage() {
             <p className="m-0 mb-2">
               {(data?.voters ?? 0).toLocaleString()} voters will be locked into their groups for{" "}
               {title}. After this, membership cannot change — not by you, not by a super-admin, and
-              not by a database edit that the ledger would accept.
+              not by a database edit that the ledger would accept. The manifest downloads
+              immediately afterwards.
             </p>
             {!isSuperAdmin ? (
               <p className="m-0 text-accent-700">
@@ -402,11 +404,11 @@ export default function GroupsPage() {
         checks={guards?.checks}
         confirmPhrase="FREEZE AND PUBLISH"
         acknowledgement="I have reviewed the group sizes and the pre-flight checks, and I understand this cannot be undone."
-        confirmLabel="Freeze & publish"
+        confirmLabel="Freeze & download"
         busy={busy}
         error={dialogError}
         actorName={admin?.name}
-        onConfirm={() => void confirmPublish()}
+        onConfirm={() => void confirmFreeze()}
         onCancel={() => setDialogOpen(false)}
       />
     </>

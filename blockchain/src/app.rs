@@ -28,6 +28,14 @@ use tokio::{io::AsyncReadExt, net::TcpStream, task::JoinSet};
 
 
 
+/// A ballot as found on the chain by its key image, for `App::find_vote`.
+pub struct FoundVote {
+    pub candidate_id: String,
+    pub block_index: usize,
+    pub timestamp: u128,
+    pub block_hash: Vec<u8>,
+}
+
 pub struct App {
     self_as_peer: Peer,
     public_ip: IpAddr,
@@ -81,6 +89,25 @@ impl App {
     /// `verify` has succeeded.
     pub async fn has_voted(&self, key_image: &[u8]) -> bool {
         self.seen_key_images.lock().unwrap().contains(key_image)
+    }
+
+    /// Finds the block a key image was recorded in, if any.
+    ///
+    /// This is safe to expose to anyone who presents the key image: it is a deterministic
+    /// function of the *voter's own* private key and the election id (`I = x·H_p(P ‖ electionId)`,
+    /// SECUREPOLL_CONTEXT.md §5.3), so only the person who signed that ballot can ever produce or
+    /// guess it. It cannot be used to look up someone else's vote.
+    pub async fn find_vote(&self, key_image: &[u8]) -> Option<FoundVote> {
+        let chain_lock = self.chain.lock().unwrap();
+        chain_lock
+            .iter()
+            .find(|block| block.key_image.as_slice() == key_image)
+            .map(|block| FoundVote {
+                candidate_id: block.data.clone(),
+                block_index: block.idx,
+                timestamp: block.timestamp,
+                block_hash: block.hash.clone(),
+            })
     }
 
     pub async fn get_rejected_ballots(&self) -> usize {

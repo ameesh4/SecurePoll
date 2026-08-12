@@ -24,7 +24,7 @@ export function areLinked(a: RingSignature, b: RingSignature): boolean {
   // Constant-time-ish comparison; key images are public, but a fixed-shape compare avoids
   // handing out early-exit timing as a matter of habit.
   let diff = 0;
-  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  for (let i = 0; i < x.length; i++) diff |= x[i]! ^ y[i]!;
   return diff === 0;
 }
 

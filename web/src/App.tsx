@@ -4,6 +4,7 @@ import RequireAuth from "./components/RequireAuth";
 import { AuthProvider } from "./auth/AuthContext";
 import RegisterPage from "./pages/RegisterPage";
 import VotePage from "./pages/VotePage";
+import VerifyVotePage from "./pages/VerifyVotePage";
 import ReplaceKeyPage from "./pages/ReplaceKeyPage";
 import VoterStatusPage from "./pages/VoterStatusPage";
 import AdminsPage from "./pages/admin/AdminsPage";
@@ -29,6 +30,8 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           {/* Path fixed by the ballot-access email: ${VOTER_APP_BASE_URL}/ballot?access=<token> */}
           <Route path="/ballot" element={<VotePage />} />
+          {/* Reached from the "ballot cast" screen, or directly by a voter checking later. */}
+          <Route path="/verify" element={<VerifyVotePage />} />
           {/* Reached from the link in the voter's confirmation email. */}
           <Route path="/status/:id" element={<VoterStatusPage />} />
           {/* Reached from the status page when a voter has lost their key file. */}

@@ -1,19 +1,18 @@
-//! Cross-origin support for the ballot endpoint.
+//! Cross-origin support for the ballot endpoint, via the `rocket_cors` crate.
 //!
 //! # Why this exists
 //!
 //! A ballot is submitted by the voter's *browser*, directly to a node. It carries
 //! `Content-Type: application/json`, which makes it a non-simple cross-origin request, so the
 //! browser sends an `OPTIONS` preflight first and refuses to send the ballot at all unless that
-//! preflight is answered. Rocket does not answer preflights on its own: a fairing alone is not
-//! enough, because there is no route to dispatch `OPTIONS` to, so the catch-all route below is
-//! as necessary as the headers.
+//! preflight is answered. `rocket_cors`'s fairing mode answers every preflight itself — no route
+//! or catch-all has to be defined for it.
 //!
 //! The ballot must go browser → node directly. Routing it through the verification server would
 //! be far easier and is forbidden: that server must never see a ballot
 //! (SECUREPOLL_CONTEXT.md §4 invariant 4). So the node has to accept cross-origin requests.
 //!
-//! # Why `*` is not a hole
+//! # Why allowing every origin and method is not a hole
 //!
 //! `Access-Control-Allow-Origin: *` looks alarming here and is not. **CORS is a browser
 //! mechanic, not this endpoint's security boundary.** The ballot endpoint accepts no cookies, no
@@ -24,45 +23,37 @@
 //!
 //! Authorization is the ring signature. Anyone can *offer* a ballot; only a holder of a private
 //! key in a published anonymity group can offer one that verifies, and only once per election.
-//! Locking the origin down would not add a single guarantee, and would break the voter's browser
-//! for no gain.
+//! Locking the origin or method down would not add a single guarantee, and would break the
+//! voter's browser for no gain.
 //!
-//! Note also that `Allow-Credentials` is deliberately absent. With it set, `*` would be rejected
-//! by browsers anyway — and we have no credentials to send.
+//! Note also that `allow_credentials` is deliberately left `false`. With it `true`, a wildcard
+//! origin would be rejected by browsers anyway — and we have no credentials to send.
 
-use rocket::fairing::{Fairing, Info, Kind};
-use rocket::http::Header;
-use rocket::{Request, Response};
+use rocket::http::Method;
+use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, Cors};
 
-pub struct Cors;
+/// Every origin, every method, any header — see the module docs for why that is safe here.
+pub fn cors_fairing() -> Cors {
+    let allowed_methods: AllowedMethods = [
+        Method::Get,
+        Method::Post,
+        Method::Put,
+        Method::Delete,
+        Method::Patch,
+        Method::Head,
+        Method::Options,
+    ]
+    .into_iter()
+    .map(From::from)
+    .collect();
 
-#[rocket::async_trait]
-impl Fairing for Cors {
-    fn info(&self) -> Info {
-        Info {
-            name: "CORS headers for browser-submitted ballots",
-            kind: Kind::Response,
-        }
+    rocket_cors::CorsOptions {
+        allowed_origins: AllowedOrigins::all(),
+        allowed_methods,
+        allowed_headers: AllowedHeaders::all(),
+        allow_credentials: false,
+        ..Default::default()
     }
-
-    async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
-        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
-        response.set_header(Header::new(
-            "Access-Control-Allow-Methods",
-            "GET, POST, OPTIONS",
-        ));
-        response.set_header(Header::new("Access-Control-Allow-Headers", "Content-Type"));
-        // Lets a browser skip the preflight for 24h of repeat submissions.
-        response.set_header(Header::new("Access-Control-Max-Age", "86400"));
-    }
-}
-
-/// Answers every preflight.
-///
-/// A catch-all rather than one `OPTIONS` route per endpoint: the fairing supplies the headers, so
-/// all this needs to do is exist and return success. Without it Rocket replies 404 to the
-/// preflight and the browser drops the ballot before it is sent.
-#[rocket::options("/<_path..>")]
-pub fn preflight(_path: std::path::PathBuf) -> rocket::http::Status {
-    rocket::http::Status::NoContent
+    .to_cors()
+    .expect("CORS configuration is invalid")
 }

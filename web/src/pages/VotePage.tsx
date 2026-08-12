@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { collectBallot } from "../api/endpoints";
 import type { RingRetrieval } from "../api/types";
@@ -11,6 +12,7 @@ import {
   sign,
   toBase64Url,
 } from "../crypto/lrs";
+import { saveVoteReceipt } from "../lib/voteReceipts";
 import { btn, btnSecondary, hint, mono, textarea } from "../ui/classes";
 import { VoterShell } from "./RegisterPage";
 
@@ -157,6 +159,15 @@ export default function VotePage() {
 
       const reply = (await response.text()).trim();
       if (reply === "OK") {
+        saveVoteReceipt({
+          electionId: ballot.electionId,
+          electionTitle: ballot.electionTitle,
+          candidateId: choice,
+          candidateName: ballot.candidates.find((c) => c.id === choice)?.name ?? choice,
+          nodeUrl: ballot.nodeUrl,
+          keyImage: toBase64Url(signature.keyImage),
+          castAt: new Date().toISOString(),
+        });
         setResult({ ok: true, message: "Your ballot has been recorded on the ledger." });
         setStage("cast");
         return;
@@ -206,12 +217,17 @@ export default function VotePage() {
             {result.message}
           </Alert>
           <div>
-            <Label className="mb-2">There is no receipt, and that is deliberate</Label>
+            <Label className="mb-2">Nobody else can look this up, and that is deliberate</Label>
             <p className="text-[12.5px] m-0">
-              You cannot look your ballot up, and neither can we. The ledger records that
-              <em> someone</em> in your anonymity group voted, and separately that your voting key
-              has now been used — but nothing links the two. If it could, your vote would not be
-              secret. Keep your key file; do not use it again.
+              The ledger records that <em>someone</em> in your anonymity group voted for a
+              candidate, and separately that your voting key has now been used — but nothing
+              links the two to anyone watching. What you <em>can</em> do is confirm your own
+              ballot was recorded correctly, because only you could have produced the key image
+              that finds it. This browser has remembered it for you —{" "}
+              <Link to="/verify" className="underline">
+                verify your vote
+              </Link>
+              . Keep your key file regardless; do not use it again.
             </p>
           </div>
         </div>

@@ -3,13 +3,16 @@ use std::{eprintln, sync::Arc};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use rocket::State;
+use rocket::config::Config;
+use rocket::http::Status;
 use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};
+use std::net::Ipv4Addr;
 
 use crate::{
     app::App,
     block::miner::MiningTask,
-    http_server::cors::{Cors, preflight},
+    http_server::cors::cors_fairing,
     lrs::serialize::{deserialize_signature, encode_message},
     lrs::verify::verify,
     net::{
@@ -18,12 +21,16 @@ use crate::{
     },
 };
 
-// Starts a web server on port 8000
+// Starts a web server on 0.0.0.0:8000
 pub async fn rocket_server(app_state: Arc<App>) {
-    let r = rocket::build()
-        // The fairing supplies the CORS headers; the preflight route is what lets Rocket dispatch
-        // the browser's OPTIONS request at all. Both are required — see cors.rs.
-        .attach(Cors)
+    let config = Config {
+        address: Ipv4Addr::UNSPECIFIED.into(),
+        port: 8000,
+        ..Config::default()
+    };
+    let r = rocket::custom(config)
+        // Fairing mode: rocket_cors answers every preflight itself, so no OPTIONS route is
+        // needed alongside it — see cors.rs.
         .mount(
             "/",
             rocket::routes![
@@ -32,9 +39,10 @@ pub async fn rocket_server(app_state: Arc<App>) {
                 get_total_votes,
                 get_tally,
                 get_rejected,
-                preflight
-            ],
-        )
+                get_vote,
+                ],
+            )
+            .attach(cors_fairing())
         .manage(app_state)
         .launch()
         .await;
@@ -234,6 +242,55 @@ async fn get_rejected(app_state: &State<Arc<App>>) -> Json<RejectedResponse> {
         election_id: app_state.election.election_id.clone(),
         rejected: app_state.get_rejected_ballots().await,
     })
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde", rename_all = "camelCase")]
+struct VoteLookupResponse {
+    election_id: String,
+    found: bool,
+    candidate_id: Option<String>,
+    block_index: Option<usize>,
+    timestamp: Option<u128>,
+    block_hash: Option<String>,
+}
+
+/// Looks up a single ballot by its key image, base64url-encoded (the same encoding the client
+/// uses for the signature's `keyImage` field).
+///
+/// This is a voter's own verifiability receipt, not a lookup service over other people's votes:
+/// see the note on `App::find_vote` for why presenting the key image is itself proof the caller
+/// is the one who cast it.
+#[rocket::get("/vote/<key_image>")]
+async fn get_vote(
+    app_state: &State<Arc<App>>,
+    key_image: &str,
+) -> Result<Json<VoteLookupResponse>, Status> {
+    let app_state = app_state.inner();
+    let Ok(key_image_bytes) = URL_SAFE_NO_PAD.decode(key_image.as_bytes()) else {
+        return Err(Status::BadRequest);
+    };
+
+    let election_id = app_state.election.election_id.clone();
+    let response = match app_state.find_vote(&key_image_bytes).await {
+        Some(vote) => VoteLookupResponse {
+            election_id,
+            found: true,
+            candidate_id: Some(vote.candidate_id),
+            block_index: Some(vote.block_index),
+            timestamp: Some(vote.timestamp),
+            block_hash: Some(hex::encode(vote.block_hash)),
+        },
+        None => VoteLookupResponse {
+            election_id,
+            found: false,
+            candidate_id: None,
+            block_index: None,
+            timestamp: None,
+            block_hash: None,
+        },
+    };
+    Ok(Json(response))
 }
 
 const DISTRIBUTE_MAX_ATTEMPTS: usize = 3;

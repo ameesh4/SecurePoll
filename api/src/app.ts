@@ -8,7 +8,7 @@ export const app = express();
 
 app.use(
   cors({
-    origin: env.CORS_ORIGINS,
+    origin: "*",
     credentials: true,
   }),
 );

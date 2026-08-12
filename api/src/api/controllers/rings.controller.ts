@@ -5,7 +5,6 @@ import {
   listRingDetails,
   previewFormation,
   previewPublish,
-  publishRings,
 } from "../../services/ring.service";
 import { currentAdmin } from "../middleware/auth";
 import { parse } from "../middleware/validate";
@@ -42,7 +41,7 @@ export async function listRingsHandler(req: Request, res: Response): Promise<voi
   });
 }
 
-/** Pre-flight for the freeze-and-publish dialog. */
+/** Pre-flight for the freeze dialog shown before the manifest is first downloaded. */
 export async function previewPublishHandler(
   req: Request,
   res: Response,
@@ -52,26 +51,16 @@ export async function previewPublishHandler(
 }
 
 /**
- * Freezes membership by publishing every group to the ledger. Irreversible, and gated on
- * SUPER_ADMIN inside the service rather than here — the rule belongs next to the operation it
- * protects, not in the transport layer.
- */
-export async function publishRingsHandler(
-  req: Request,
-  res: Response,
-): Promise<void> {
-  const { id } = parse(uuidParamSchema, req.params);
-  const admin = currentAdmin(req);
-  res.json({ data: await publishRings(id, admin) });
-}
-
-/**
  * The election manifest a ledger node imports from disk (blockchain/ELECTION_MANIFEST.md).
  *
  * Served as a file download rather than a JSON envelope: the bytes are the artifact, and the
  * digest recorded against each ring is computed over exactly these bytes. Wrapping them in the
  * usual `{ data }` envelope would mean the thing the operator saves is not the thing the digest
  * describes.
+ *
+ * The first call for an election also freezes group membership — see `exportChainManifest`.
+ * That makes this endpoint irreversible the first time it succeeds, even though it is a GET;
+ * every call after the first is a plain, side-effect-free re-read.
  */
 export async function exportChainManifestHandler(
   req: Request,

@@ -24,6 +24,7 @@ import { listEligibleVoters } from "../db/repository/eligibility.repository";
 import { findRingForVoter, listRingMembers } from "../db/repository/rings.repository";
 import { findVoterById } from "../db/repository/voters.repository";
 import { AuditAction, type BallotAccessToken, type Election } from "../db/schema";
+import { saveDemoToken } from "../lib/demoTokenStore";
 import { AppError, ConflictError, NotFoundError, UnauthorizedError } from "../lib/errors";
 import { mailer } from "../lib/mailer";
 import { ballotAccessEmail } from "../lib/mailer/templates";
@@ -93,7 +94,17 @@ async function rotateAndDeliver(
 ): Promise<void> {
   const minted = mintToken();
   await rotateTokenHash(token.id, minted.tokenHash);
-
+  console.log(`[ballot-access] delivering token ${minted.token} to ${token.deliverTo} for election ${election.id}`);
+  console.log(`[ballot-access] link ${ballotUrl(minted.token)}`);
+  // Dev/demo only — see demoTokenStore.ts. Lets `bun run vote` pick up a live token without a
+  // browser or a real inbox.
+  saveDemoToken({
+    voterId: token.voterId,
+    electionId: token.electionId,
+    deliverTo: token.deliverTo,
+    token: minted.token,
+    expiresAt: token.expiresAt.toISOString(),
+  });
   try {
     await mailer.send(
       ballotAccessEmail({

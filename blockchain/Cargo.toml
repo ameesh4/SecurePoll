@@ -23,3 +23,4 @@ tokio = { version = "1.52.3", features = ["full"] }
 tokio-util = "0.7.18"
 uuid = { version = "1.24.0", features = ["v4"] }
 wincode = { version = "0.5.4", features = ["derive"] }
+rocket_cors = "0.6.0"

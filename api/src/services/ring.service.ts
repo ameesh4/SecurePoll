@@ -17,7 +17,6 @@ import {
   markRingPublished,
 } from "../db/repository/rings.repository";
 import { AuditAction, type Election, type Voter } from "../db/schema";
-import { chainFor } from "../lib/chain";
 import { ConflictError, NotFoundError } from "../lib/errors";
 import { listCandidatesInOrder } from "./candidate.service";
 import { evaluatePublishGuards, type GuardReport } from "./guards.service";
@@ -379,107 +378,6 @@ export async function previewPublish(electionId: string): Promise<GuardReport> {
   return evaluatePublishGuards(election);
 }
 
-export interface PublishOutcome {
-  publishedGroups: number;
-  alreadyPublished: number;
-  failed: { ringId: string; index: number; reason: string }[];
-}
-
-/**
- * Freezes group membership by publishing every group to the ledger.
- *
- * Publication *is* the freeze: from the moment a ring carries a `publishedAt`, its membership
- * is what ballots verify against and nothing may change it. There is no reverse operation and
- * no database edit that helps, which is why this needs a super-admin and a typed confirmation
- * in front of it.
- *
- * The ledger writes are deliberately outside a database transaction. A published ring cannot
- * be un-published by rolling back, so wrapping them in a transaction would create the very
- * mismatch it looks like it prevents: the rollback would clear `publishedAt` here while the
- * ledger kept the ring. Instead each ring is marked immediately after its own write succeeds,
- * so an interrupted run leaves a truthful record and re-running publishes only the remainder.
- */
-export async function publishRings(
-  electionId: string,
-  admin: { id: string; role: string },
-): Promise<PublishOutcome> {
-  const election = await findElectionById(electionId);
-  if (!election) throw new NotFoundError("Election not found");
-
-  assertOperationAllowed("publishRings", election);
-  assertSuperAdmin(admin.role, "Freezing and publishing anonymity groups");
-
-  const guards = await evaluatePublishGuards(election);
-  if (!guards.passed) {
-    const failed = guards.checks.filter((check) => !check.passed);
-    throw new ConflictError(
-      `These groups are not ready to publish: ${failed
-        .map((check) => check.label)
-        .join("; ")}`,
-      { checks: guards.checks },
-    );
-  }
-
-  const groups = await listRingsWithSizes(electionId);
-  const outcome: PublishOutcome = {
-    publishedGroups: 0,
-    alreadyPublished: 0,
-    failed: [],
-  };
-
-  for (const entry of groups) {
-    if (entry.ring.publishedAt !== null) {
-      outcome.alreadyPublished += 1;
-      continue;
-    }
-
-    const members = await listRingMembers(entry.ring.id);
-    // Ordered by position, and passed through in that order. The ordering is part of what a
-    // signature verifies against, so it must not be sorted or de-duplicated on the way out.
-    const publicKeys = members.map((member) => member.publicKey);
-
-    try {
-      const { txRef } = await chainFor(election).publishRing(
-        electionId,
-        entry.ring.id,
-        publicKeys,
-      );
-      await markRingPublished(entry.ring.id, txRef, db);
-      outcome.publishedGroups += 1;
-    } catch (error) {
-      outcome.failed.push({
-        ringId: entry.ring.id,
-        index: entry.ring.index,
-        reason: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  await recordAuditEntry({
-    adminId: admin.id,
-    action: AuditAction.RingsPublished,
-    entityType: "election",
-    entityId: electionId,
-    electionId,
-    before: { published: outcome.alreadyPublished },
-    after: {
-      published: outcome.alreadyPublished + outcome.publishedGroups,
-      total: groups.length,
-      failed: outcome.failed.length,
-    },
-  });
-
-  if (outcome.failed.length > 0) {
-    throw new ConflictError(
-      `${outcome.failed.length} of ${groups.length} groups could not be published. ` +
-        "The groups that succeeded are permanent; run publish again to complete the rest.",
-      outcome,
-    );
-  }
-
-  return outcome;
-}
-
 /**
  * The election manifest — how candidates and anonymity groups reach the ledger nodes.
  *
@@ -529,10 +427,22 @@ export function manifestDigest(serialized: string): string {
 }
 
 /**
- * Builds the manifest for an election.
+ * Builds the manifest for an election — and, the first time it is generated, freezes group
+ * membership by publishing every group.
  *
- * Reads the same way `publishRings` does — `listRingsWithSizes` then `listRingMembers` per
- * group — because that is the path that already guarantees members come back in
+ * There is no separate "push to the ledger" step (`api/src/lib/chain/http.ts` deliberately
+ * throws rather than inventing one): nodes import this file from disk, so exporting it *is*
+ * how a group's membership reaches a node. That is also why the digest computed below — not a
+ * response from a chain adapter — is what `chainTxRef` records: nothing else can hand back
+ * proof of what was published, because nothing else is where the published bytes exist.
+ *
+ * Freezing therefore happens inline here, gated exactly as the old dedicated "publish" action
+ * was: a super-admin, and every check in `evaluatePublishGuards`, so a reviewer or an
+ * incomplete electorate is refused. Every export after the first is a plain re-read — a
+ * published ring cannot become unassigned or undersized, so the guard cannot newly fail.
+ *
+ * Reads the same way the old publish step did — `listRingsWithSizes` then `listRingMembers`
+ * per group — because that is the path that already guarantees members come back in
  * `positionInRing` order. `listRingDetails` is not used here: it paginates and omits members.
  *
  * **Ring order is cryptographic.** Every challenge in an LSAG signature hashes the whole ring
@@ -541,7 +451,7 @@ export function manifestDigest(serialized: string): string {
  */
 export async function exportChainManifest(
   electionId: string,
-  admin: { id: string },
+  admin: { id: string; role: string },
 ): Promise<ChainManifestExport> {
   const election = await findElectionById(electionId);
   if (!election) throw new NotFoundError("Election not found");
@@ -595,6 +505,36 @@ export async function exportChainManifest(
 
   const serialized = serializeManifest(manifest);
   const digest = manifestDigest(serialized);
+
+  const unpublished = groups.filter((entry) => entry.ring.publishedAt === null);
+  if (unpublished.length > 0) {
+    assertSuperAdmin(admin.role, "Freezing and publishing anonymity groups");
+
+    const guards = await evaluatePublishGuards(election);
+    if (!guards.passed) {
+      const failed = guards.checks.filter((check) => !check.passed);
+      throw new ConflictError(
+        `These groups are not ready to publish: ${failed
+          .map((check) => check.label)
+          .join("; ")}`,
+        { checks: guards.checks },
+      );
+    }
+
+    for (const entry of unpublished) {
+      await markRingPublished(entry.ring.id, digest, db);
+    }
+
+    await recordAuditEntry({
+      adminId: admin.id,
+      action: AuditAction.RingsPublished,
+      entityType: "election",
+      entityId: electionId,
+      electionId,
+      before: { published: groups.length - unpublished.length },
+      after: { published: groups.length, total: groups.length },
+    });
+  }
 
   await recordAuditEntry({
     adminId: admin.id,

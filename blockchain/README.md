@@ -71,8 +71,7 @@ src/
     verify.rs                   LSAG verification, linkability, key-image keys
 election.json                   the election manifest this node serves (see ELECTION_MANIFEST.md)
 launch_nodes.py                 spins up N local nodes (1 root + N-1 peers, or all peers with --no-root)
-vote.py                         casts random votes against a running node's HTTP API
-tally.py                        verifies cast votes and compares tallies against the chain
+tally.py                        verifies cast votes and compares tallies against the chain (orphaned, see below)
 ```
 
 ## Cross-origin requests (CORS)
@@ -178,29 +177,33 @@ python3 launch_nodes.py 5
 | `--root-port` | Port of the external root node to connect to (required with `--no-root`) |
 | `--root-id` | Identifier of the external root node to connect to (default: `node_0`, used with `--no-root`) |
 
-## Casting and tallying votes
+## Casting votes for a demo
+
+`vote.py` is gone — it POSTed to `/add_vote/<voter_id>/<vote>`, which was removed when casting
+started requiring a real LSAG signature, and it never worked again after that. Casting now needs
+a real ring signature over a real published group, which only the TypeScript library in
+`web/src/crypto/lrs` implements, so its replacement lives where that library can be imported
+directly instead of reimplemented: **`api/src/scripts/vote.ts`**, run with `bun run vote` from
+`api/`.
+
+It drives the same path a voter's browser does: redeem a ballot-access token against the
+verification server, sign the canonical message with the LRS library, POST the signed ballot
+straight to a node. It only works for voters seeded with `bun run db:seed-registrations` (the
+only ones this server ever holds a private key for) and only outside `NODE_ENV=production` (the
+only setting where a token's plaintext is saved to disk at all — see
+`api/src/lib/demoTokenStore.ts`). See `api/src/scripts/vote.ts` for the full flow and usage.
 
 With a root node running its HTTP server (default `0.0.0.0:8000`, matching the Rust node's
 `--public-ip` default and Rocket's fixed port):
 
-`vote.py` reads candidate ids from the manifest (`--election`, default `election.json`) rather
-than a hardcoded `A`-`F` list.
-
 ```bash
-python3 vote.py 20                 # cast 20 random votes, recording them to votes_record.jsonl (cleared first)
-python3 tally.py --timeout 30      # wait for propagation, verify each vote, compare tallies
+cd api && bun run vote --election <electionId> --root-ip 0.0.0.0 --root-port 8000
 ```
 
-> **`vote.py` and `tally.py` no longer work.** They POST to `/add_vote/<voter_id>/<vote>`, which
-> has been removed: casting a ballot now requires a real LSAG signature, and the TypeScript
-> library in `web/src/crypto/lrs` is the only signer. A replacement harness that drives that
-> signer has not been written yet, so there is currently no scripted way to cast a ballot. The
-> Rust tests cover the verification path using signatures committed in
-> `web/src/crypto/lrs/test-vectors/vectors.json`.
-
-Both scripts take `--root-ip` (default `0.0.0.0`) and `--root-port` (default `8000`) to point at a
-root node running elsewhere — note `--root-port` here is the HTTP port, not the P2P port used
-between nodes (which the OS assigns automatically and has no fixed default).
+`tally.py` is still here but now doubly orphaned: it already didn't work against the current
+`/votes/tally` response shape, and it also read `votes_record.jsonl`, a file only `vote.py` ever
+wrote. Reading `GET /votes/tally` directly (`curl http://<root-ip>:<root-port>/votes/tally`) is
+the simplest way to check a demo's result today.
 
 ### HTTP API (root peer)
 

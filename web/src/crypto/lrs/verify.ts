@@ -55,8 +55,8 @@ export function verify(params: VerifyParams): boolean {
     // --- re-walk the ring ---
     let c = c0;
     for (let i = 0; i < n; i++) {
-      const li = add(mulG(s[i]), mul(P[i], c)); // L_i = s_i·G + c_i·P_i
-      const ri = add(mul(H[i], s[i]), mul(image, c)); // R_i = s_i·H_p(P_i) + c_i·I
+      const li = add(mulG(s[i]!), mul(P[i]!, c)); // L_i = s_i·G + c_i·P_i
+      const ri = add(mul(H[i]!, s[i]!), mul(image, c)); // R_i = s_i·H_p(P_i) + c_i·I
       c = challenge(message, ring, li, ri); // c_{i+1}
     }
 
@@ -72,6 +72,6 @@ export function verify(params: VerifyParams): boolean {
 function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
   return diff === 0;
 }

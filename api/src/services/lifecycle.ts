@@ -92,7 +92,6 @@ export type ElectionOperation =
   | "manageCandidates"
   | "reviewVoters"
   | "formRings"
-  | "publishRings"
   | "issueTokens"
   | "exportChainManifest"
   | "viewTally";
@@ -103,11 +102,12 @@ const OPERATION_STATES: Record<ElectionOperation, readonly ElectionStatus[]> = {
   // ring exists to sign against it.
   manageCandidates: ["DRAFT", "REGISTRATION_OPEN"],
   reviewVoters: ["REGISTRATION_OPEN"],
-  // Formation and publication both live in RINGS_FROZEN: entering the state forms the
-  // groups, and publishing them is the step that makes membership permanent. Re-forming is
-  // legal until the first ring is published, which the ring service checks separately.
+  // Groups are formed on entering RINGS_FROZEN. Publication — the step that makes membership
+  // permanent — has no operation of its own: it happens inside `exportChainManifest`, the
+  // first time a manifest is exported, because that is the only place the published bytes'
+  // digest exists (see ring.service.ts). Re-forming is legal until then, which the ring
+  // service checks separately.
   formRings: ["RINGS_FROZEN"],
-  publishRings: ["RINGS_FROZEN"],
   issueTokens: ["RINGS_FROZEN", "VOTING_OPEN"],
   // Exportable from the moment groups are frozen, and onwards — bringing an extra ledger node
   // up mid-election needs the same manifest the others already hold. Refused before
@@ -122,7 +122,6 @@ const OPERATION_LABELS: Record<ElectionOperation, string> = {
   manageCandidates: "Changing candidates",
   reviewVoters: "Reviewing voters",
   formRings: "Forming anonymity groups",
-  publishRings: "Publishing anonymity groups",
   issueTokens: "Issuing ballot access",
   exportChainManifest: "Exporting the election manifest",
   viewTally: "Viewing the result",
@@ -163,7 +162,6 @@ export function availableOperations(
     manageCandidates: isOperationAllowed("manageCandidates", status),
     reviewVoters: isOperationAllowed("reviewVoters", status),
     formRings: isOperationAllowed("formRings", status),
-    publishRings: isOperationAllowed("publishRings", status),
     issueTokens: isOperationAllowed("issueTokens", status),
     exportChainManifest: isOperationAllowed("exportChainManifest", status),
     viewTally: isOperationAllowed("viewTally", status),

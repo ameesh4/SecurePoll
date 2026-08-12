@@ -23,7 +23,6 @@ import type {
   KeyRotationRequest,
   LoginResult,
   MonitoringSnapshot,
-  PublishOutcome,
   Registration,
   RegistrationDetail,
   RegistrationQueue,
@@ -244,19 +243,12 @@ export function fetchRings(
   return request(`/admin/elections/${electionId}/rings?${query}`, { auth: true, signal });
 }
 
+/** Pre-flight for the dialog shown before a manifest download performs the first freeze. */
 export function previewPublish(
   electionId: string,
   signal?: AbortSignal,
 ): Promise<GuardReport> {
   return request(`/admin/elections/${electionId}/rings/publish`, { auth: true, signal });
-}
-
-/** Irreversible. Super-admin only, enforced server-side. */
-export function publishRings(electionId: string): Promise<PublishOutcome> {
-  return request(`/admin/elections/${electionId}/rings/publish`, {
-    method: "POST",
-    auth: true,
-  });
 }
 
 /* ── Ballot access ─────────────────────────────────────────────────────────────────────── */
